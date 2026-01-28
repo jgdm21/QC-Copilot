@@ -1,0 +1,51 @@
+{
+  "manifest_version": 3,
+  "name": "QC Copilot Sidebar",
+  "version": "1.0",
+  "description": "Sidebar QC Copilot: validación automática de releases.",
+  "permissions": [
+    "storage",
+    "scripting",
+    "webRequest",
+    "tabs",
+    "activeTab",
+    "alarms"
+  ],
+
+    "host_permissions": [
+    "https://backoffice.sonosuite.com/*",
+    "https://yandex.com/*",
+    "https://script.google.com/*",
+    "https://docs.google.com/*",
+    "https://*.googleapis.com/*",
+    "https://*.google.com/*",
+    "https://*.googleusercontent.com/*",
+    "https://api.allorigins.win/*",
+    "https://jgdm21.github.io/*",
+    "https://api.duckduckgo.com/*",
+    "https://corsproxy.io/*",
+    "https://api.codetabs.com/*",
+    "https://sonosuite.zendesk.com/*"
+  ],
+
+  "content_security_policy": {
+  "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://docs.google.com https://*.googleusercontent.com https://jgdm21.github.io https://api.duckduckgo.com https://api.allorigins.win https://corsproxy.io https://api.codetabs.com; img-src 'self' data: https://www.google.com https://*.googleapis.com https://sonosuite-prod-images.s3.amazonaws.com https://*.s3.amazonaws.com;"
+},
+
+  "background": {
+    "service_worker": "background.js"
+  },
+ "content_scripts": [
+  {
+    "matches": ["https://backoffice.sonosuite.com/*"],
+    "js": ["content.js", "drawer_injector.js"],
+    "css": ["drawer.css"]
+  }
+],
+  "web_accessible_resources": [
+    {
+      "resources": ["drawer.html", "drawer_blank.html", "drawer.js", "drawer.css", "qcwt_tab.html", "qcwt_tab.css", "qcwt_tab.js", "qc_tabs.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

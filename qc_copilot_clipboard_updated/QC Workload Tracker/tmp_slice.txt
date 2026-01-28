@@ -1,0 +1,121 @@
+        const h = Math.max(200, Math.min(window.innerHeight, stored));
+        drawer.style.height = h + 'px';
+      }
+      chrome.storage.local.set({ QCWT_drawerMin: min });
+    }
+    btnMin.addEventListener('click', toggleMin);
+    header.addEventListener('dblclick', toggleMin);
+
+    // -------- Panel logic (inline UI) --------
+    const agentSelect = document.getElementById('qcwt-agent');
+    const lockBtn = document.getElementById('qcwt-lock');
+    const daySelect = document.getElementById('qcwt-day');
+    const refreshBtn = document.getElementById('qcwt-refresh');
+    const debugBtn = document.getElementById('qcwt-debug');
+    const tenantList = document.getElementById('tenantList');
+    const lastUpdate = document.getElementById('lastUpdate');
+    const debugInfo = document.getElementById('debugInfo');
+
+    const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz6Hg5Z50Ok8htGQyUlqSOJMuVDJDKfjp9345MvVfC9-Sut-E4PX04IxbKdvzB9f7SK/exec";
+    const WORKLOAD_TTL_MS = 60 * 60 * 1000; // 1 hour
+    const LOCK_ICON_OPEN = '<svg width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><g fill="#4A4A4A" fill-rule="nonzero"><path d="M4.8,10.9953976 L4.8,10.9953976 L4.8,19.0046024 C4.8,19.5443356 5.20329495,20 5.70078449,20 L18.2992155,20 C18.7998322,20 19.2,19.5543453 19.2,19.0046024 L19.2,10.9953976 C19.2,10.4556644 18.796705,10 18.2992155,10 L5.70078449,10 C5.20016778,10 4.8,10.4456547 4.8,10.9953976 L4.8,10.9953976 Z M3,10.9953976 C3,9.33850596 4.2083756,8 5.70078449,8 L18.2992155,8 C19.7882905,8 21,9.34828102 21,10.9953976 L21,19.0046024 C21,20.661494 19.7916244,22 18.2992155,22 L5.70078449,22 C4.2117095,22 3,20.651719 3,19.0046024 L3,10.9953976 Z M23,8 L21,8 C21,5.790861 19.209139,4 17,4 C14.790861,4 13,5.790861 13,8 L11,8 C11,4.6862915 13.6862915,2 17,2 C20.3137085,2 23,4.6862915 23,8 Z M12,16 C12.5522847,16 13,15.5522847 13,15 C13,14.4477153 12.5522847,14 12,14 C11.4477153,14 11,14.4477153 11,15 C11,15.5522847 11.4477153,16 12,16 Z"/></g></svg>';
+    const LOCK_ICON_CLOSED = '<svg width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><g fill="#4A4A4A" fill-rule="nonzero"><path d="M4.8,10.9953976 L4.8,10.9953976 L4.8,19.0046024 C4.8,19.5443356 5.20329495,20 5.70078449,20 L18.2992155,20 C18.7998322,20 19.2,19.5543453 19.2,19.0046024 L19.2,10.9953976 C19.2,10.4556644 18.796705,10 18.2992155,10 L5.70078449,10 C5.20016778,10 4.8,10.4456547 4.8,10.9953976 L4.8,10.9953976 Z M3,10.9953976 C3,9.33850596 4.2083756,8 5.70078449,8 L18.2992155,8 C19.7882905,8 21,9.34828102 21,10.9953976 L21,19.0046024 C21,20.661494 19.7916244,22 18.2992155,22 L5.70078449,22 C4.2117095,22 3,20.651719 3,19.0046024 L3,10.9953976 Z M18,8 L16,8 C16,5.790861 14.209139,4 12,4 C9.790861,4 8,5.790861 8,8 L6,8 C6,4.6862915 8.6862915,2 12,2 C15.3137085,2 18,4.6862915 18,8 Z M12,16 C12.5522847,16 13,15.5522847 13,15 C13,14.4477153 12.5522847,14 12,14 C11.4477153,14 11,14.4477153 11,15 C11,15.5522847 11.4477153,16 12,16 Z"/></g></svg>';
+    const agentColors = {};
+
+    function updateHeaderColor(agent) {
+      const color = agentColors[agent] || '#4CAF50';
+      document.getElementById('qcwt-drawer-header').style.backgroundColor = color;
+      if (refreshBtn) { refreshBtn.style.backgroundColor = color; refreshBtn.style.color = '#fff'; }
+    }
+
+    async function loadAgentColors() {
+      try {
+        const csvUrl = 'https://docs.google.com/spreadsheets/d/18GkGVdOPDJ4hnaM65tSCNeAv9DhA95htNaS89V5jKgM/export?format=csv&gid=631841993';
+        const response = await fetch(csvUrl);
+        const csv = await response.text();
+        const lines = csv.split('\n');
+        for (let i = 1; i < lines.length; i++) {
+          const [agent, color] = lines[i].split(',');
+          if (agent && color) agentColors[agent.trim()] = color.trim();
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    async function loadAgents() {
+      try {
+        const response = await fetch(`${APPS_SCRIPT_URL}?action=getAgents`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        if (data.status === 'success') {
+          agentSelect.innerHTML = '<option value="">Select Agent...</option>';
+          data.agents.forEach(a => {
+            const opt = document.createElement('option');
+            opt.value = a; opt.textContent = a; agentSelect.appendChild(opt);
+          });
+        } else {
+          throw new Error(data.message || 'Unknown error');
+        }
+      } catch (err) {
+        agentSelect.innerHTML = `<option value="">Error: ${err.message}</option>`;
+      }
+    }
+
+    async function getCachedWorkload(agent, day, force = false) {
+      const key = `${agent}|${day}`;
+      const cache = await new Promise(res => chrome.storage.local.get('QCWT_workloadCache', r => res(r.QCWT_workloadCache || {})));
+      const entry = cache[key];
+      const now = Date.now();
+      if (!force && entry && entry.workload && (now - (entry.ts || 0) < WORKLOAD_TTL_MS)) {
+        return { fromCache: true, workload: entry.workload };
+      }
+      const resp = await fetch(`${APPS_SCRIPT_URL}?action=getWorkload&agent=${encodeURIComponent(agent)}&day=${day}`);
+      const data = await resp.json();
+      if (data.status !== 'success') throw new Error(data.message || 'Workload fetch failed');
+      const next = Object.assign({}, cache, { [key]: { workload: data.workload, ts: now } });
+      await new Promise(res => chrome.storage.local.set({ QCWT_workloadCache: next }, () => res()));
+      return { fromCache: false, workload: data.workload };
+    }
+
+    async function loadWorkloadData(force = false) {
+      if (!agentSelect.value) return;
+      tenantList.innerHTML = '<p>Loading...</p>';
+      try {
+        const [{ fromCache, workload }, completedResponse] = await Promise.all([
+          getCachedWorkload(agentSelect.value, daySelect.value, force),
+          fetch(`${APPS_SCRIPT_URL}?action=getCompleted&agent=${encodeURIComponent(agentSelect.value)}&day=${daySelect.value}`)
+        ]);
+        const completedData = await completedResponse.json();
+        if (completedData.status === 'success') {
+          displayWorkload(workload, completedData.completed);
+          updateHeaderColor(agentSelect.value);
+          lastUpdate.textContent = 'Last updated: ' + new Date().toLocaleTimeString() + (fromCache ? ' (cache)' : '');
+        } else {
+          const msg = completedData.message || 'Unknown error';
+          tenantList.innerHTML = `<p>Error loading data: ${msg}</p>`;
+        }
+      } catch (e) {
+        tenantList.innerHTML = `<p>Error loading data: ${e.message}</p>`;
+      }
+    }
+
+    function displayWorkload(workload, completed) {
+      if (!Array.isArray(workload) || workload.length === 0) {
+        tenantList.innerHTML = '<p>No workload assigned for this day</p>';
+        return;
+      }
+      tenantList.innerHTML = '';
+      workload.forEach(tenant => {
+        let completedCount = 0;
+        const tenantName = tenant.tenant;
+        if (completed) {
+          if (completed[tenantName] !== undefined) {
+            completedCount = completed[tenantName];
+          } else {
+            const lower = tenantName.toLowerCase();
+            const exact = Object.keys(completed).find(k => k.toLowerCase() === lower);
+            if (exact) completedCount = completed[exact];
+            else {
+              const partial = Object.keys(completed).find(k => k.toLowerCase().includes(lower) || lower.includes(k.toLowerCase()));
+              if (partial) completedCount = completed[partial];
+            }
+          }

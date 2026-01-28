@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>QC Copilot Sidebar</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="drawer.css">
+  <link rel="stylesheet" href="qcwt_tab.css">
+  <link href="https://fonts.googleapis.com/css?family=Inter:400,700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div id="qc-tabs-header" style="display:flex; gap:8px; padding:8px; border-bottom:1px solid #e5e7eb; align-items:center;">
+    <div style="display:flex; gap:8px;">
+      <button id="qc-tab-btn-copilot" class="qc-tab-btn" style="padding:6px 10px; border:1px solid #cbd5e1; background:#f1f5f9; border-radius:6px; font-size:13px;">QC Copilot</button>
+      <button id="qc-tab-btn-workload" class="qc-tab-btn" style="padding:6px 10px; border:1px solid #e5e7eb; background:#fff; border-radius:6px; font-size:13px;">QC Workload</button>
+    </div>
+    <div style="margin-left:auto; display:flex; gap:8px;">
+      <button id="qc-copy-snapshot" title="Copy QC snapshot JSON to clipboard" style="padding:6px 10px; border:1px solid #e5e7eb; background:#fff; border-radius:6px; font-size:13px; cursor:pointer;">Copy Snapshot</button>
+      <button id="qc-clear-cache" title="Clear cached data (lists, mappings)" style="padding:6px 10px; border:1px solid #e5e7eb; background:#fff; border-radius:6px; font-size:13px; cursor:pointer;">Clear Cache</button>
+    </div>
+  </div>
+  <div id="qc-tabs" style="height: calc(100% - 44px); display:flex; flex-direction:column;">
+    <div id="qc-tab-copilot" class="qc-tab-panel" style="flex:1; display:block;">
+      <div id="qc-drawer-content">
+        <div id="loading">Loading QC...</div>
+        <div id="qc-results" style="display:none;"></div>
+      </div>
+    </div>
+    <div id="qc-tab-workload" class="qc-tab-panel" style="flex:1; display:none; overflow:auto;"></div>
+  </div>
+  <script src="drawer.js"></script>
+  <script src="qcwt_tab.js"></script>
+  <script src="qc_tabs.js"></script>
+</body>
+</html>

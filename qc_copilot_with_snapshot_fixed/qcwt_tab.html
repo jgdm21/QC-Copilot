@@ -1,0 +1,28 @@
+<div id="qcwt-tab" role="tabpanel" aria-label="QC Workload">
+  <div class="qcwt-controls">
+    <div class="qcwt-control-group">
+      <label for="qcwt-agent">Agent</label>
+      <div class="qcwt-agent-row">
+        <select id="qcwt-agent"></select>
+        <button id="qcwt-lock" title="Lock/Unlock agent" aria-label="Lock/Unlock agent"></button>
+      </div>
+    </div>
+    <div class="qcwt-control-group">
+      <label for="qcwt-day">Day</label>
+      <select id="qcwt-day">
+        <option value="today">today</option>
+        <option value="yesterday">yesterday</option>
+      </select>
+    </div>
+    <div class="qcwt-control-group qcwt-actions">
+      <button id="qcwt-refresh" class="qcwt-primary">Refresh</button>
+      <button id="qcwt-debug" class="qcwt-secondary">Debug Info</button>
+    </div>
+  </div>
+
+  <p id="qcwt-lastUpdate">Last updated: -</p>
+
+  <div id="qcwt-debugInfo" style="display:none"></div>
+  <div id="qcwt-tenantList" class="qcwt-tenant-list"></div>
+</div>
+

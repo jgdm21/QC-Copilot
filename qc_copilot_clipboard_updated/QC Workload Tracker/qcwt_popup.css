@@ -1,0 +1,110 @@
+body {
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  padding: 10px;
+  width: 350px;
+}
+
+h3 {
+  margin-top: 0;
+  text-align: center;
+  color: #333;
+}
+
+label {
+  display: block;
+  margin-top: 8px;
+  font-weight: bold;
+  color: #555;
+}
+
+select, button {
+  width: 100%;
+  margin: 5px 0;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+button {
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+button:hover {
+  background-color: #45a049;
+}
+
+#lastUpdate {
+  font-size: 12px;
+  color: #666;
+  text-align: center;
+  margin: 5px 0;
+}
+
+#tenantList {
+  margin-top: 10px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.tenant {
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 8px;
+  background-color: #f9f9f9;
+}
+
+.tenant-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+.tenant-header strong {
+  color: #333;
+  font-size: 15px;
+}
+
+.progress {
+  font-weight: bold;
+  color: #4CAF50;
+  font-size: 14px;
+}
+
+
+.tenant-details {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #666;
+  margin: 5px 0;
+}
+
+.delay {
+  color: #ff6b6b;
+  font-weight: bold;
+}
+
+.comments {
+  font-style: italic;
+  color: #555;
+  font-size: 12px;
+  margin-top: 5px;
+  padding-top: 5px;
+  border-top: 1px solid #eee;
+}
+
+/* Loading states */
+#tenantList p {
+  text-align: center;
+  color: #666;
+  font-style: italic;
+  padding: 20px;
+}

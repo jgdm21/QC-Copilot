@@ -1,0 +1,199 @@
+#qcwt-tab {
+  box-sizing: border-box;
+  padding: 12px;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  color: #1f2937;
+  --qcwt-accent: #4CAF50;
+  --qcwt-accent-10: rgba(76,175,80,0.10);
+  --qcwt-accent-20: rgba(76,175,80,0.20);
+}
+
+#qcwt-tab * { box-sizing: border-box; }
+
+#qcwt-tab .qcwt-controls {
+  display: grid;
+  grid-template-columns: 1fr 160px auto;
+  gap: 12px;
+  align-items: end;
+}
+
+#qcwt-tab .qcwt-control-group label {
+  display: block;
+  font-weight: 600;
+  font-size: 12px;
+  color: #4b5563;
+  margin-bottom: 6px;
+}
+
+#qcwt-tab select,
+#qcwt-tab button {
+  height: 36px;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  padding: 6px 10px;
+  font-size: 14px;
+}
+
+#qcwt-tab .qcwt-agent-row {
+  display: grid;
+  grid-template-columns: 1fr 36px;
+  gap: 8px;
+}
+
+#qcwt-tab #qcwt-lock {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+}
+
+#qcwt-tab .qcwt-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+#qcwt-tab .qcwt-primary {
+  background: var(--qcwt-accent, #4CAF50);
+  color: #fff;
+  border: none;
+  font-weight: 600;
+}
+
+#qcwt-tab .qcwt-secondary {
+  background: #f9fafb;
+  color: #374151;
+}
+
+#qcwt-tab #qcwt-lastUpdate {
+  margin: 10px 0 6px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+#qcwt-tab #qcwt-debugInfo {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  color: #374151;
+  margin-bottom: 10px;
+}
+
+#qcwt-tab .qcwt-tenant-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+#qcwt-tab .qcwt-tenant {
+  border: 1px solid var(--qcwt-accent-20, #e5e7eb);
+  border-left: 4px solid var(--qcwt-accent, #4CAF50);
+  border-radius: 8px;
+  padding: 10px;
+  background: #fff;
+}
+
+#qcwt-tab .qcwt-tenant-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+#qcwt-tab .qcwt-tenant-name {
+  font-weight: 700;
+  color: #111827;
+  flex: 1;
+}
+
+#qcwt-tab .qcwt-progress {
+  font-variant-numeric: tabular-nums;
+  color: #4b5563;
+}
+
+#qcwt-tab .qcwt-status {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+}
+
+#qcwt-tab .qcwt-status.completed { background: #ecfdf5; border-color: #10b981; color: #065f46; }
+#qcwt-tab .qcwt-status.in-progress { background: var(--qcwt-accent-10, #fffbeb); border-color: var(--qcwt-accent, #4CAF50); color: #064e3b; }
+#qcwt-tab .qcwt-status.not-started { background: #f9fafb; border-color: #9ca3af; color: #374151; }
+
+#qcwt-tab .qcwt-tenant-details {
+  display: flex;
+  gap: 10px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+#qcwt-tab .qcwt-tenant-actions {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+}
+
+#qcwt-tab .qcwt-tenant-actions button {
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--qcwt-accent-20, #e5e7eb);
+  background: #f9fafb;
+  transition: background-color .15s ease, transform .05s ease;
+}
+
+#qcwt-tab .qcwt-tenant-actions button:hover { background: var(--qcwt-accent-10, #eef2f7); }
+#qcwt-tab .qcwt-tenant-actions button:active { background: #e5e7eb; transform: translateY(1px); }
+#qcwt-tab .qcwt-tenant-actions button.qcwt-clicked { background: #e5e7eb; }
+
+/* Custom tooltip for QC Approach (Workload) */
+.qcwt-approach-pill { position: relative; outline: none; }
+.qcwt-approach-pill::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 0;
+  top: calc(100% + 8px);
+  background: rgba(17, 24, 39, 0.98);
+  color: #fff;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.3;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+  max-width: 320px;
+  min-width: 200px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition: opacity .15s ease, transform .15s ease;
+  z-index: 10000;
+  white-space: normal;
+}
+.qcwt-approach-pill::before {
+  content: '';
+  position: absolute;
+  left: 10px;
+  top: 100%;
+  border-width: 6px 6px 0 6px;
+  border-style: solid;
+  border-color: rgba(17, 24, 39, 0.98) transparent transparent transparent;
+  opacity: 0;
+  transition: opacity .15s ease;
+}
+.qcwt-approach-pill:hover::after,
+.qcwt-approach-pill:focus::after,
+.qcwt-approach-pill:hover::before,
+.qcwt-approach-pill:focus::before {
+  opacity: 1;
+  transform: translateY(0);
+}

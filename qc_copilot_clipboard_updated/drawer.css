@@ -1,0 +1,983 @@
+body {
+  background: #f8f9fa;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', Roboto, Arial, sans-serif;
+  font-size: 14px;
+  color: #ffffff;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#qc-drawer-content {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', Roboto, Arial, sans-serif;
+  padding: 0;
+  background: #ffffff;
+  min-height: 100vh;
+  position: relative;
+}
+
+/* Loading State */
+#loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: #6b7280;
+  font-size: 16px;
+  font-weight: 500;
+  padding: 40px;
+}
+
+/* Header Section */
+#qc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+  color: white;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+#qc-header-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.qc-header-btn {
+  background: rgba(255,255,255,0.2);
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.875rem;
+  color: white;
+  cursor: pointer;
+  margin-left: 8px;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(10px);
+}
+
+.qc-header-btn:hover {
+  background: rgba(255,255,255,0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+/* Summary Section - Enhanced */
+#qc-summary {
+  margin: 16px 16px 20px 16px;
+  background: linear-gradient(135deg, #1f2937 0%, #374151 100%);
+  padding: 16px 20px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+#qc-summary::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 100px;
+  height: 100px;
+  background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+  border-radius: 50%;
+  transform: translate(30px, -30px);
+}
+
+#qc-summary-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.qc-summary-group-title {
+  margin-top: 12px;
+  margin-bottom: 6px;
+  font-weight: 600;
+  color: #e5e7eb;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 1px;
+  opacity: 0.8;
+}
+
+.qc-summary-item {
+  color: #ffffff;
+  margin-bottom: 6px;
+  list-style: none;
+  font-size: 0.875rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 0;
+  position: relative;
+  padding-right: 32px; /* Space for future help button */
+}
+
+.qc-summary-item::before {
+  content: '';
+  display: none;
+}
+
+/* Future help button placeholder */
+.qc-summary-item::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  /* Placeholder for future help button */
+}
+
+/* Main Results Area */
+#qc-results {
+  padding: 0 16px 20px 16px;
+}
+
+/* Table Styling */
+.qc-full-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin-bottom: 20px;
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+
+.qc-parent-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1f2937;
+  padding: 16px 20px;
+  background: #f3f4f6;
+  text-align: left;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  font-size: 0.875rem;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.qc-child-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #6b7280;
+  padding: 12px 20px;
+  vertical-align: top;
+  min-width: 140px;
+  background: #fafafa;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.qc-child-value {
+  padding: 12px 20px;
+  vertical-align: top;
+  background: #ffffff;
+  font-weight: 500;
+  font-size: 1rem;
+  color: #374151;
+  border-bottom: 1px solid #f3f4f6;
+  /* Asegura que textos largos (p.ej., Considerations) envuelvan bien en drawers estrechos */
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+#qc-results > table > tbody > tr:nth-child(4) > td.qc-child-value {
+  background-color: #f7ebd7;
+}
+
+/* Last row without border */
+.qc-full-table tr:last-child .qc-child-label,
+.qc-full-table tr:last-child .qc-child-value {
+  border-bottom: none;
+}
+
+/* Flag Lists */
+.qc-flag-list {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.qc-flag-list li {
+  padding: 6px 12px;
+  margin-bottom: 6px;
+  background: #f3f4f6;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: all 0.2s ease;
+}
+
+.qc-flag-list li:hover {
+  background: #e5e7eb;
+  transform: translateX(2px);
+}
+
+.qc-flag-list li:last-child {
+  margin-bottom: 0;
+}
+
+/* Audio Alert Badge */
+.qc-audio-alert.qc-warning {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  color: #ffffff;
+  padding: 6px 14px;
+  border-radius: 6px;
+  display: inline-block;
+  margin: 4px 0;
+  font-weight: 600;
+  font-size: 0.875rem;
+  box-shadow: 0 2px 4px rgba(251, 191, 36, 0.3);
+}
+
+/* Estilos para análisis de audio - COMPACTO */
+.qc-audio-analysis-track {
+  margin: 8px 0;
+  padding: 12px;
+  border: 1px solid #374151;
+  border-radius: 8px;
+  background: rgba(55, 65, 81, 0.2);
+}
+
+.qc-audio-track-title {
+  margin: 0 0 8px 0;
+  color: #ffffff;
+  font-size: 1em;
+  font-weight: 600;
+  border-bottom: 1px solid #4b5563;
+  padding-bottom: 4px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+
+.qc-audio-fragments {
+  margin-left: 8px;
+}
+
+.qc-audio-fragment {
+  margin: 6px 0;
+  padding: 8px;
+  border-left: 3px solid #4b5563;
+  background: rgba(75, 85, 99, 0.1);
+  border-radius: 4px;
+}
+
+.qc-fragment-with-alerts {
+  border-left: 3px solid #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.qc-fragment-normal {
+  border-left: 3px solid #4b5563;
+  background: rgba(75, 85, 99, 0.05);
+}
+
+.qc-fragment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.qc-fragment-number {
+  font-weight: 600;
+  color: #ffffff;
+  font-size: 0.9em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.qc-fragment-score {
+  background: #374151;
+  color: #ffffff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.8em;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.qc-fragment-info {
+  margin-bottom: 6px;
+  color: #9ca3af;
+  font-size: 0.85em;
+}
+
+.qc-fragment-data {
+  margin-bottom: 2px;
+  color: #e5e7eb;
+  font-weight: 500;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.qc-fragment-data strong {
+  color: #ffffff;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+
+.qc-fragment-alerts {
+  margin-top: 6px;
+}
+
+.qc-alert-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 0.8em;
+}
+
+.qc-alert-red {
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.qc-alert-yellow {
+  background: rgba(245, 158, 11, 0.2);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.qc-alert-icon {
+  font-size: 0.8em;
+}
+
+/* Custom tooltip for QC Approach (Copilot Tenant Info) */
+.qc-approach-pill { position: relative; outline: none; }
+.qc-approach-pill::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 0;
+  top: calc(100% + 8px);
+  background: rgba(17, 24, 39, 0.98);
+  color: #fff;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.3;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+  max-width: 320px;
+  min-width: 200px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition: opacity .15s ease, transform .15s ease;
+  z-index: 10000;
+  white-space: normal;
+}
+.qc-approach-pill::before {
+  content: '';
+  position: absolute;
+  left: 10px;
+  top: 100%;
+  border-width: 6px 6px 0 6px;
+  border-style: solid;
+  border-color: rgba(17, 24, 39, 0.98) transparent transparent transparent;
+  opacity: 0;
+  transition: opacity .15s ease;
+}
+.qc-approach-pill:hover::after,
+.qc-approach-pill:focus::after,
+.qc-approach-pill:hover::before,
+.qc-approach-pill:focus::before {
+  opacity: 1;
+  transform: translateY(0);
+}
+.qc-alert-message {
+  color: #f3f4f6;
+}
+
+.qc-track-summary {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid #374151;
+  color: #9ca3af;
+  font-size: 0.85em;
+}
+
+.qc-track-alerts-count {
+  font-weight: 600;
+  color: #ef4444;
+}
+
+/* Celda que ocupa todo el ancho para audio analysis */
+.qc-audio-full-width {
+  padding: 8px !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Estilos para alertas detalladas de audio */
+.qc-audio-track-detail {
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.qc-audio-sub-detail {
+  font-size: 0.9em;
+  margin-left: 8px;
+  color: #6b7280;
+}
+
+/* Distribución de espacio en alertas: menos para mensaje, más para resultados */
+.qc-grid-row-content {
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 8px !important;
+  width: 100% !important;
+}
+
+.qc-alert-message {
+  flex: 0 0 30% !important; /* Ocupar solo 30% del espacio disponible */
+  min-width: 0 !important; /* Permite que se comprima si es necesario */
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  max-width: 100% !important;
+}
+
+.qc-match-separator {
+  flex: 0 0 auto !important;
+  opacity: 0.5;
+  margin: 0 4px;
+}
+
+.qc-match-column {
+  flex: 1 1 70% !important; /* Ocupar el 70% restante del espacio */
+  min-width: 0 !important; /* Permite que flexbox funcione correctamente */
+  max-width: 70% !important;
+}
+
+/* Estilos para tablas de audio analysis - fondo oscuro con letra clara */
+.qc-audio-table-container {
+  margin: 16px 0;
+  border-radius: 12px;
+  background: #1f2937;
+  border: none;
+  overflow: hidden;
+  width: 100%;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.qc-audio-table-header {
+  background: #374151;
+  color: #ffffff;
+  padding: 12px 16px;
+  font-weight: 600;
+  font-size: 0.9em;
+  border-bottom: none;
+}
+
+.qc-audio-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.85em;
+  background: #1f2937;
+  border: none;
+}
+
+.qc-audio-table th {
+  background: #374151;
+  color: #e5e7eb;
+  padding: 10px 12px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.85em;
+  border: none;
+  border-bottom: none;
+}
+
+.qc-audio-table td {
+  padding: 8px 12px;
+  color: #d1d5db;
+  border: none;
+  border-bottom: none;
+  vertical-align: top;
+  /* MEJORADO: Permitir que el texto se envuelva y no se comprima */
+  white-space: normal;
+  overflow: visible;
+  word-wrap: break-word;
+  min-width: 80px; /* Ancho mínimo para evitar compresión excesiva */
+}
+
+.qc-audio-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* Asegurar que no haya bordes en ningún elemento de la tabla de audio */
+.qc-audio-table * {
+  border: none !important;
+}
+
+.qc-audio-table tr {
+  border: none;
+}
+
+.qc-audio-table td,
+.qc-audio-table th {
+  border: none !important;
+  outline: none;
+}
+
+.qc-audio-row-alert {
+  background: #e9e1b63b
+}
+
+.qc-audio-row-alert td {
+  color: #2e3847;
+}
+
+.qc-audio-row-normal td {
+  color: #d1d5db;
+}
+
+.qc-audio-score {
+  font-weight: 600;
+  color: #000000 !important;
+  text-align: center;
+}
+
+.qc-audio-alerts {
+  font-size: 0.8em;
+  color: #ec9c12 !important;
+  font-weight: 500;
+  /* MEJORADO: Permitir que los alerts se muestren correctamente */
+  white-space: normal;
+  overflow: visible;
+  word-wrap: break-word;
+  min-width: 100px; /* Ancho mínimo para los alerts */
+}
+
+.qc-alert-line {
+  padding: 2px 4px;
+  margin: 1px 0;
+  color: #000000;
+  font-size: 0.8em;
+  /* MEJORADO: Permitir que las líneas de alerta se muestren correctamente */
+  white-space: normal;
+  overflow: visible;
+  word-wrap: break-word;
+  background: #303a4a;
+  border-radius: 12px;
+  display: block;
+  line-height: 1.2;
+}
+
+/* Hacer las tablas responsive - optimizar espacio para contenido importante */
+/* NOTA: Los anchos de columna ahora se controlan desde drawer.js para mejor optimización */
+
+/* Duck Search Icon */
+.qc-duck-search {
+  margin-left: 8px;
+  vertical-align: middle;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+}
+
+.qc-duck-search:hover {
+  opacity: 1;
+  background: #e5e7eb;
+}
+
+/* Cover Image */
+#qc-cover-big {
+  display: block;
+  margin: 0;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  max-width: 180px;
+  max-height: 180px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  background: #f3f4f6;
+  object-fit: cover;
+}
+
+#qc-cover-big:hover {
+  transform: scale(1.05);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+}
+
+#qc-cover-big.qc-expanded {
+  max-width: 300px;
+  max-height: 300px;
+  box-shadow: 0 12px 36px rgba(0,0,0,0.2);
+  z-index: 99;
+  transform: scale(1.1);
+}
+
+/* Status Badges */
+.qc-verif-status {
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: inline-block;
+}
+
+/* Spinner */
+.qc-spinner {
+  border: 2px solid #e5e7eb;
+  border-top: 2px solid #3b82f6;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  animation: qcspin 0.8s linear infinite;
+  display: inline-block;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+@keyframes qcspin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Modal Styling */
+.qc-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 999999;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.qc-modal-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(4px);
+}
+
+.qc-modal-dialog {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) scale(0.95);
+  background: white;
+  padding: 24px;
+  border-radius: 12px;
+  min-width: 400px;
+  max-width: 600px;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+  animation: modalSlideIn 0.3s ease forwards;
+}
+
+@keyframes modalSlideIn {
+  to {
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.qc-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1f2937;
+  border-bottom: 2px solid #e5e7eb;
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+}
+
+.qc-modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.qc-modal-close:hover {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.qc-modal-content {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: #4b5563;
+}
+
+.qc-modal-content a {
+  color: #3b82f6;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.qc-modal-content a:hover {
+  text-decoration: underline;
+}
+
+/* Links and Interactive Elements */
+a {
+  color: #3b82f6;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+a:hover {
+  color: #2563eb;
+  text-decoration: underline;
+}
+
+/* Utility Classes */
+.text-green {
+  color: #10b981;
+}
+
+.text-red {
+  color: #ef4444;
+}
+
+.text-yellow {
+  color: #f59e0b;
+}
+
+.text-gray {
+  color: #6b7280;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f3f4f6;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+  #qc-drawer-content {
+    padding: 0;
+  }
+  
+  .qc-modal-dialog {
+    min-width: 90vw;
+    margin: 20px;
+  }
+}
+
+/* Hover Effects for Future Enhancements */
+.qc-help-button {
+  /* Future help button styling */
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.2);
+  border: 1px solid rgba(255,255,255,0.3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 12px;
+  color: white;
+  font-weight: bold;
+}
+
+.qc-help-button:hover {
+  background: rgba(255,255,255,0.3);
+  transform: scale(1.1);
+}
+
+/* Contenedor para la imagen de la portada y el botón de búsqueda de Yandex */
+.qc-cover-wrapper {
+  position: relative;
+  display: inline-block; /* Asegura que el contenedor se ajuste al tamaño del contenido */
+  /* Si la imagen se va a expandir a tamaño completo dentro de este contenedor,
+     considera overflow: hidden; para evitar desbordamientos, aunque el `qc-expanded`
+     se aplica directamente a la imagen. */
+}
+
+/* Estilo para el botón de búsqueda de Yandex */
+.qc-yandex-search-button {
+  position: absolute;
+  top: 8px;   /* Ajusta la posición vertical desde la parte superior */
+  right: 8px; /* Ajusta la posición horizontal desde la derecha */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px; /* Tamaño del botón, ajusta para que coincida con .qc-duck-search */
+  height: 28px; /* Tamaño del botón */
+  border-radius: 50%; /* Lo hace redondo */
+  background: rgba(0, 0, 0, 0.6); /* Fondo semitransparente oscuro */
+  color: #fff; /* Color del icono (blanco) */
+  text-decoration: none; /* Elimina el subrayado por defecto de los enlaces */
+  z-index: 10; /* Asegura que esté por encima de la imagen */
+  transition: background 0.2s ease; /* Suaviza el efecto hover */
+  cursor: pointer; /* Indica que es interactivo */
+}
+
+.qc-yandex-search-button:hover {
+  background: rgba(0, 0, 0, 0.8); /* Fondo más oscuro al pasar el ratón */
+}
+
+/* Asegura que el SVG dentro del botón tenga el tamaño correcto */
+.qc-yandex-search-button svg {
+  width: 16px; /* Ajusta según el tamaño deseado del icono */
+  height: 16px; /* Ajusta según el tamaño deseado del icono */
+  fill: currentColor; /* Usa el color definido por 'color' en .qc-yandex-search-button */
+}
+
+/* Estilos para filas de results de audio analysis */
+.qc-audio-result-row {
+  background-color: #f8fafc;
+  border-left: 3px solid #e2e8f0;
+}
+
+.qc-audio-result-row td {
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.qc-audio-result-row:hover {
+  background-color: #f1f5f9;
+}
+
+/* Estilos para el contador de results */
+.qc-audio-table th:nth-child(6),
+.qc-audio-table td:nth-child(6) {
+  text-align: center;
+  font-weight: 500;
+}
+
+/* Mejorar la visualización de fragmentos principales */
+.qc-audio-table tr:not(.qc-audio-result-row) td:first-child {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+/* Estilos para alertas de fragmentos */
+.qc-alert-score_100 {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.qc-alert-title_similar {
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.qc-alert-title_similar_artist_different {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.qc-alert-multiple_artists {
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.qc-alert-high_score_different_title {
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.qc-alert-album_info {
+  color: #ffffff;
+  font-weight: 500;
+}
+
+/* Estilos para alertas de artistas curados */
+.qc-alert-curated_artist_match {
+  color: #ffc67c;
+  font-weight: 600;
+}
+
+.qc-alert-curated_artist_title_match {
+  color: #ffc67c;
+  font-weight: 600;
+}
+
+/* Estilos para el icono de YouTube */
+.qc-youtube-cell {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.qc-youtube-search {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  color: #ff0000;
+  text-decoration: none;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.qc-youtube-search:hover {
+  color: #cc0000;
+  transform: scale(1.1);
+  background: rgba(255, 0, 0, 0.1);
+}
+
+.qc-youtube-search svg {
+  width: 16px;
+  height: 16px;
+}
