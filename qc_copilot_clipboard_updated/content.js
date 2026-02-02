@@ -2677,10 +2677,7 @@ function closeModalSafely(modal) {
       cleanupAfterAudioAnalysis();
     }
     
-    // NUEVO: Escuchar control de clean mode en tiempo real
-    if (event.data.tipo === 'cleanModeControl') {
-      handleCleanModeControl(event.data.enabled);
-    }
+    // Clean mode is always active - no listener needed
   });
 
   // NUEVO: Función mejorada para highlighting específico
@@ -4524,27 +4521,7 @@ function closeModalSafely(modal) {
     }
   }
 
-  // NUEVO: Función para control inmediato del clean mode
-  function handleCleanModeControl(enabled) {
-    console.log(`QC Copilot: Clean mode control received - enabled: ${enabled}`);
-    
-    // NUEVO: Aplicar clean mode inmediatamente en la página
-    if (enabled) {
-      // Ocultar elementos detallados
-      const detailedElements = document.querySelectorAll('.qc-detail-section, .qc-audio-analysis-section, .qc-full-details');
-      detailedElements.forEach(el => {
-        if (el) el.style.display = 'none';
-      });
-      console.log('QC Copilot: Clean mode enabled - detailed elements hidden');
-    } else {
-      // Mostrar elementos detallados
-      const detailedElements = document.querySelectorAll('.qc-detail-section, .qc-audio-analysis-section, .qc-full-details');
-      detailedElements.forEach(el => {
-        if (el) el.style.display = '';
-      });
-      console.log('QC Copilot: Clean mode disabled - detailed elements shown');
-    }
-  }
+  // Clean mode is always active - function removed
 
   // NUEVO: Función ULTRA OPTIMIZADA para análisis paralelo masivo de audio
   async function performMassiveParallelAudioAnalysis(tracksWithAlerts) {

@@ -44,7 +44,7 @@
 ],
   "web_accessible_resources": [
     {
-      "resources": ["drawer.html", "drawer_blank.html", "drawer.js", "drawer.css", "qcwt_tab.html", "qcwt_tab.css", "qcwt_tab.js", "qc_tabs.js"],
+      "resources": ["drawer.html", "drawer_blank.html", "drawer.js", "drawer.css"],
       "matches": ["<all_urls>"]
     }
   ]

@@ -537,8 +537,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
             // ---- Curated artists ----
             // Heuristics to reduce false positives:
-            // - Use word-boundary style matching on normalized text
-            // - For short names (len 3): match only within artist fields
+            // - Single-word names (any length): match ONLY within artist fields
+            //   (avoids "Shame" in title "Shame on U")
+            // - Multi-word names (e.g., "Bad Bunny"): also search in titles/all text
+            //   (catches "I feel like Bad Bunny" in titles)
             // - For very short names (len <=2): require exact equality of an artist token
             const foundCurated = new Set();
             // Build artists-only normalized text and token set
@@ -564,13 +566,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
               if (!original) return;
               const norm = normalizeForMatch(original);
               if (!norm) return;
-              if (norm.length >= 4) {
-                if (paddedAll.includes(` ${norm} `)) foundCurated.add(original);
-              } else if (norm.length === 3) {
-                if (paddedArtists.includes(` ${norm} `)) foundCurated.add(original);
-              } else {
-                // <=2 chars: only if an artist token equals exactly
+
+              const wordCount = norm.split(' ').filter(Boolean).length;
+              const isMultiWord = wordCount >= 2;
+
+              if (norm.length <= 2) {
+                // Very short names: only if an artist token equals exactly
                 if (artistWordSet.has(norm)) foundCurated.add(original);
+              } else if (isMultiWord) {
+                // Multi-word names (e.g., "Bad Bunny"): search in ALL text including titles
+                // because multi-word matches are unlikely to be false positives
+                if (paddedAll.includes(` ${norm} `)) foundCurated.add(original);
+              } else {
+                // Single-word names (3+ chars): ONLY match within artist fields
+                // This prevents "Shame" matching in title "Shame on U"
+                if (paddedArtists.includes(` ${norm} `)) foundCurated.add(original);
               }
             });
             if (foundCurated.size) {

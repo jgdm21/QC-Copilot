@@ -477,37 +477,7 @@ function renderRow(label, value) {
   return `<tr><td class="qc-child-label">${escapeHTML(label)}:</td><td class="qc-child-value">${value}</td></tr>`;
 }
 
-function normalizeTenantKeyForWorkload(name) {
-  return String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-}
-
-function getWorkloadCommentForTenant(tenantName) {
-  try {
-    const cache = JSON.parse(localStorage.getItem('qcwt.workloadCache') || '{}');
-    const preferredAgent = localStorage.getItem('qcwt.selectedAgent') || '';
-    const preferredDay = localStorage.getItem('qcwt.selectedDay') || 'today';
-    const targetKey = normalizeTenantKeyForWorkload(tenantName);
-    const pickFromEntry = (entry) => {
-      if (!entry || !Array.isArray(entry.workload)) return null;
-      const found = entry.workload.find(it => normalizeTenantKeyForWorkload(it.tenant) === targetKey && it.comments);
-      return found && found.comments ? String(found.comments) : null;
-    };
-    const preferredComment = pickFromEntry(cache[`${preferredAgent}|${preferredDay}`]);
-    if (preferredComment) return preferredComment;
-    let best = null;
-    let bestTs = -1;
-    Object.values(cache || {}).forEach(entry => {
-      const c = pickFromEntry(entry);
-      if (c && typeof entry.ts === 'number' && entry.ts > bestTs) {
-        best = c;
-        bestTs = entry.ts;
-      }
-    });
-    return best || '';
-  } catch (_) {
-    return '';
-  }
-}
+// QC Workload functions removed - feature no longer used
 
 function renderFlagCell(items, isDuck) {
   if (!items?.length) return '–';
@@ -1052,15 +1022,12 @@ function renderFullUI() {
       tenantHtml += renderRow('QC Approach', pill);
     }
     tenantHtml += renderRow('Considerations', escapeHTML(considerationText));
-    const todaysComment = getWorkloadCommentForTenant(tenantInfo.tenant || '');
-    if (todaysComment) {
-      tenantHtml += renderRow("Today's Comment", escapeHTML(todaysComment));
-    }
     tenantHtml += '</table>';
   }
 
-  const isCleanMode = localStorage.getItem('qcCleanMode') === 'true';
-  const isCleanMode2 = localStorage.getItem('qcCleanMode') === 'true';
+  // Clean mode is always active - no toggle needed
+  const isCleanMode = true;
+  const isCleanMode2 = true;
   const invalidCredits = findInvalidCreditNames(releaseData);
 
   // MEJORADO: Audio Analysis Results (SIEMPRE VISIBLE - después de Tenant Info)
@@ -1719,13 +1686,6 @@ function renderFullUI() {
   div.id = 'qc-summary';
   div.innerHTML = `<div id="qc-summary-title" class="qc-summary-header">
     <span>👀 QC Checks</span>
-    <div class="qc-header-actions">
-      <label class="qc-switch" title="Toggle clean mode">
-        <input type="checkbox" id="qc-clean-toggle" ${isCleanMode2 ? 'checked' : ''} />
-        <span class="qc-switch-track"><span class="qc-switch-thumb"></span></span>
-        <span class="qc-switch-text">Clean mode</span>
-      </label>
-    </div>
   </div>`;
   
       const anyAlerts = Object.values(groups).some(a => a.length);
@@ -1980,27 +1940,7 @@ itemContent += `</div>`;
     });
   } catch (e) { /* noop */ }
 
-  // Toggle Clean Mode
-  const cleanToggle = document.getElementById('qc-clean-toggle');
-  if (cleanToggle) {
-    cleanToggle.addEventListener('change', (e) => {
-      const isClean = e.target.checked;
-      localStorage.setItem('qcCleanMode', isClean.toString());
-      
-      console.log('QC Copilot: Clean mode toggled:', isClean);
-      
-      // NUEVO: Aplicar clean mode inmediatamente
-      applyCleanMode(isClean);
-      
-      // Enviar mensaje al content.js
-      if (window.parent && window.parent.postMessage) {
-        window.parent.postMessage({
-          tipo: 'cleanModeControl',
-          enabled: isClean
-        }, '*');
-      }
-    });
-  }
+  // Clean mode is always active - no toggle needed
 
   // MODIFICADO: Eliminado el toggle de audio analysis
   // El audio analysis ahora se ejecuta siempre automáticamente
@@ -2660,9 +2600,6 @@ window.addEventListener('message', e => {
   if (!btn) return;
   btn.addEventListener('click', () => {
     try {
-      // Clear local caches in iframe (QCWT caches)
-      try { localStorage.removeItem('qcwt.workloadCache'); } catch(_) {}
-      try { localStorage.removeItem('qcwt.agentsCache'); } catch(_) {}
       // Ask background to clear extension-wide caches
           if (chrome?.runtime?.sendMessage) {
             chrome.runtime.sendMessage({ action: 'QC_CLEAR_CACHE' }, (res) => {
@@ -3763,19 +3700,7 @@ function hideNotification() {
   }
 }
 
-// NUEVO: Función para aplicar clean mode inmediatamente
-function applyCleanMode(isClean) {
-  const details = document.getElementById('qc-full-details');
-  if (details) {
-    details.style.display = isClean ? 'none' : '';
-    console.log(`QC Copilot: Clean mode applied - details display: ${details.style.display}`);
-  }
-  
-  // MODIFICADO: NO aplicar clean mode a audio analysis - mantener siempre visible
-  // La sección de audio analysis se mantiene siempre visible independientemente del clean mode
-  
-  console.log(`QC Copilot: Clean mode ${isClean ? 'enabled' : 'disabled'} - details updated, audio analysis always visible`);
-}
+// Clean mode is always active - function removed
 
 // NUEVO: Función para manejar análisis de audio detenido
 function handleAudioAnalysisStopped(reason) {
