@@ -771,8 +771,25 @@
     });
 
     // ==== 5) basicInfo y ARTISTAS ====
+    // MEJORADO: Captura dinámica de Artists - detecta cualquier campo dentro de la sección "Artists"
     const basicInfo = { Metadata: {}, Artists: {} };
-    const roles = ['Primary', 'Primary Artist', 'Featured Artist', 'Remixer', 'Composer', 'Lyricist', 'Producer', 'Publisher', 'Contributor', 'Vocals', 'Artist'];
+
+    // Primero, encontrar los campos que están dentro de la sección "Artists" del DOM
+    const artistSectionFields = new Set();
+    document.querySelectorAll('h5.font-extra-bold').forEach(h5 => {
+      if (h5.innerText.trim() !== 'Artists') return;
+      // Encontrar el contenedor de la sección Artists y extraer todos los field names
+      h5.closest('.pt-3')?.querySelectorAll('div.row.py-2').forEach(row => {
+        if (isExcluded(row)) return;
+        const divs = row.querySelectorAll(':scope > div');
+        if (divs.length < 2) return;
+        const key = divs[0].innerText.trim();
+        if (key) artistSectionFields.add(key);
+      });
+    });
+    console.log('[Artists Section] Dynamic fields detected:', Array.from(artistSectionFields));
+
+    // Ahora procesar Basic Information usando los campos detectados dinámicamente
     document.querySelectorAll('h5.font-extra-bold').forEach(h5 => {
       if (h5.innerText.trim() !== 'Basic Information') return;
       h5.closest('.pt-3')?.querySelectorAll('div.row.py-2').forEach(row => {
@@ -782,8 +799,9 @@
         const key = divs[0].innerText.trim();
         const val = divs[1].innerText.trim();
         if (!key || key === 'Release Date') return;
-        console.log(`[BasicInfo Debug] Field: "${key}" = "${val}" | isRole: ${roles.includes(key)}`);
-        if (roles.includes(key)) basicInfo.Artists[key] = val;
+        const isArtistField = artistSectionFields.has(key);
+        console.log(`[BasicInfo Debug] Field: "${key}" = "${val}" | isArtistField: ${isArtistField}`);
+        if (isArtistField) basicInfo.Artists[key] = val;
         else basicInfo.Metadata[key] = val;
       });
     });
@@ -915,7 +933,8 @@
         // PASO 1: Extraer header y sections
         const header = infoDiv.querySelector('h5.font-extra-bold.fs-5')?.innerText.trim() || 'Untitled';
       const sections = { Metadata: {}, Artists: {} };
-        
+
+        // MEJORADO: Usar los campos de Artists detectados dinámicamente (artistSectionFields)
         infoDiv.querySelectorAll('div.row.py-2').forEach(row => {
           if (isExcluded(row)) return;
           const divs = row.querySelectorAll(':scope > div');
@@ -923,8 +942,9 @@
           const key = divs[0].innerText.trim();
           const val = divs[1].innerText.trim();
           if (!key || key === 'Release Date') return;
-          console.log(`[Track Debug] Field: "${key}" = "${val}" | isRole: ${roles.includes(key)}`);
-          if (roles.includes(key)) sections.Artists[key] = val;
+          const isArtistField = artistSectionFields.has(key);
+          console.log(`[Track Debug] Field: "${key}" = "${val}" | isArtistField: ${isArtistField}`);
+          if (isArtistField) sections.Artists[key] = val;
           else sections.Metadata[key] = val;
         });
 

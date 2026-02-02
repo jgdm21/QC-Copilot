@@ -329,6 +329,83 @@ const validationDetails = {
   'Artist matches curated artist': {
     title: 'Artist Matches Curated Artist',
     description: 'The artist name matches an entry from the curated artist list. This is a critical red flag indicating potential impersonation or unauthorized use of a famous artist\'s name. Verify thoroughly before approval - failure to do so will almost certainly result in DSP blocking and reporting. Do not approve without proper verification.'
+  },
+  // ===== METADATA VALIDATION RULES =====
+  'zxx_with_lyricist': {
+    title: 'Language/Lyricist Conflict',
+    description: 'Track Audio Language is set to "zxx" (no linguistic content) but has a Lyricist assigned. If the track is instrumental or has no lyrics, it should not have a Lyricist. Either remove the Lyricist or change the Track Audio Language to the appropriate language.'
+  },
+  'instrumental_with_lyricist': {
+    title: 'Instrumental Track with Lyricist',
+    description: 'Track Version indicates this is an Instrumental track, but a Lyricist is assigned. Instrumental tracks should not have Lyricist credits. Review and correct this inconsistency.'
+  },
+  'explicit_clean_in_title': {
+    title: 'Explicit/Clean in Title',
+    description: 'The track title contains "(Explicit)" or "(Clean)". These designations should NOT be included in the title field - use the dedicated Explicit field instead to mark content rating.'
+  },
+  'explicit_clean_in_version': {
+    title: 'Explicit/Clean in Version',
+    description: 'The Track Version field contains "(Explicit)" or "(Clean)". These designations should NOT appear in the version field. Content rating should be set using the Explicit field only.'
+  },
+  'explicit_clean_in_release_title': {
+    title: 'Explicit/Clean in Release Title',
+    description: 'The Release Title contains "(Explicit)" or "(Clean)". These designations should NOT be included in the release title. Use the appropriate content rating field instead.'
+  },
+  'ampersand_in_lyricist': {
+    title: 'Compound Credit in Lyricist',
+    description: 'Lyricist field contains "&" character. Compound credits using "&" are not permitted. Use commas to separate multiple lyricist names (e.g., "John Smith, Jane Doe" instead of "John Smith & Jane Doe").'
+  },
+  'ampersand_in_composer': {
+    title: 'Compound Credit in Composer',
+    description: 'Composer field contains "&" character. Compound credits using "&" are not permitted. Use commas to separate multiple composer names (e.g., "John Smith, Jane Doe" instead of "John Smith & Jane Doe").'
+  },
+  'ampersand_in_release_lyricist': {
+    title: 'Compound Credit in Release Lyricist',
+    description: 'Release-level Lyricist field contains "&" character. Compound credits using "&" are not permitted at release level either. Use commas to separate names.'
+  },
+  'ampersand_in_release_composer': {
+    title: 'Compound Credit in Release Composer',
+    description: 'Release-level Composer field contains "&" character. Compound credits using "&" are not permitted at release level either. Use commas to separate names.'
+  },
+  'mixed_alphabets_title': {
+    title: 'Mixed Alphabets in Title',
+    description: 'The track title contains characters from multiple writing systems (e.g., Latin and Cyrillic, or Latin and CJK). This may indicate a side-by-side literal translation, which is not permitted. Review manually to ensure proper formatting.'
+  },
+  'mixed_alphabets_release_title': {
+    title: 'Mixed Alphabets in Release Title',
+    description: 'The release title contains characters from multiple writing systems. This may indicate a side-by-side literal translation. Translations should not be placed together in the same title field. Review manually.'
+  },
+  'mixed_alphabets_artist': {
+    title: 'Mixed Alphabets in Artist Name',
+    description: 'An artist name contains characters from multiple writing systems. This may indicate improper formatting or a side-by-side translation. Review to ensure the artist name is correctly formatted.'
+  },
+  'mixed_alphabets_release_artist': {
+    title: 'Mixed Alphabets in Release Artist',
+    description: 'A release-level artist field contains characters from multiple writing systems. Review to ensure proper formatting and that this is not an improper side-by-side translation.'
+  },
+  'emoji_in_title': {
+    title: 'Emoji in Track Title',
+    description: 'The track title contains emoji characters. Emojis are not permitted in metadata fields including titles. Remove all emoji characters from the title.'
+  },
+  'emoji_in_version': {
+    title: 'Emoji in Track Version',
+    description: 'The Track Version field contains emoji characters. Emojis are not permitted in metadata fields. Remove all emoji characters from the version field.'
+  },
+  'emoji_in_release_title': {
+    title: 'Emoji in Release Title',
+    description: 'The release title contains emoji characters. Emojis are not permitted in metadata fields including release titles. Remove all emoji characters.'
+  },
+  'emoji_in_artist': {
+    title: 'Emoji in Artist Credit',
+    description: 'An artist credit field contains emoji characters. Emojis are not permitted in credit fields. Remove all emoji characters from artist names and credits.'
+  },
+  'emoji_in_release_artist': {
+    title: 'Emoji in Release Artist',
+    description: 'A release-level artist field contains emoji characters. Emojis are not permitted in any metadata fields. Remove all emoji characters.'
+  },
+  'clean_version_check': {
+    title: 'Clean Version - Verify Explicit Exists',
+    description: 'This track is marked as "Clean". A Clean version should only exist if there is a corresponding Explicit version that was previously distributed. Verify that an Explicit version of this track exists and was distributed before approving this Clean version.'
   }
 };
 
@@ -841,6 +918,374 @@ function findInvalidCreditNames(releaseData) {
 
   return invalid;
 }
+
+// =====================================================
+// VALIDACIONES DE METADATA - QC Rules
+// =====================================================
+
+/**
+ * Detecta el uso de diferentes alfabetos/scripts en un texto
+ * Retorna true si hay mezcla de scripts (posible traducción lado a lado)
+ */
+function detectMixedAlphabets(text) {
+  if (!text || typeof text !== 'string') return { hasMixed: false, scripts: [] };
+
+  const scriptPatterns = {
+    latin: /[a-zA-Z\u00C0-\u024F\u1E00-\u1EFF]/u,
+    cyrillic: /[\u0400-\u04FF]/u,
+    greek: /[\u0370-\u03FF]/u,
+    arabic: /[\u0600-\u06FF\u0750-\u077F]/u,
+    hebrew: /[\u0590-\u05FF]/u,
+    cjk: /[\u4E00-\u9FFF\u3400-\u4DBF]/u,           // Chinese
+    hiragana: /[\u3040-\u309F]/u,                    // Japanese Hiragana
+    katakana: /[\u30A0-\u30FF]/u,                    // Japanese Katakana
+    hangul: /[\uAC00-\uD7AF\u1100-\u11FF]/u,        // Korean
+    thai: /[\u0E00-\u0E7F]/u,
+    devanagari: /[\u0900-\u097F]/u                   // Hindi
+  };
+
+  const detectedScripts = [];
+  for (const [scriptName, pattern] of Object.entries(scriptPatterns)) {
+    if (pattern.test(text)) {
+      detectedScripts.push(scriptName);
+    }
+  }
+
+  // Si hay más de un script detectado (excluyendo solo latin), es mezcla
+  const hasMixed = detectedScripts.length > 1;
+
+  return { hasMixed, scripts: detectedScripts };
+}
+
+/**
+ * Detecta emojis en un texto
+ */
+function detectEmojis(text) {
+  if (!text || typeof text !== 'string') return { hasEmojis: false, emojis: [] };
+
+  // Regex para detectar emojis (incluyendo emoji sequences, ZWJ sequences, etc.)
+  const emojiRegex = /(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F|\p{Emoji_Modifier_Base}\p{Emoji_Modifier}?|\p{Emoji_Component})+/gu;
+
+  const matches = text.match(emojiRegex) || [];
+  // Filtrar caracteres que no son realmente emojis visuales (como # o *)
+  const emojis = matches.filter(e => !/^[#*0-9]$/.test(e));
+
+  return { hasEmojis: emojis.length > 0, emojis };
+}
+
+/**
+ * Detecta el carácter & en campos de créditos (compound credits no permitidos)
+ */
+function detectAmpersandInCredits(text) {
+  if (!text || typeof text !== 'string') return false;
+  return text.includes('&');
+}
+
+/**
+ * Detecta (Explicit) o (Clean) en títulos o versiones
+ */
+function detectExplicitCleanInText(text) {
+  if (!text || typeof text !== 'string') return { found: false, type: null };
+
+  const lowerText = text.toLowerCase();
+  if (/\(explicit\)/.test(lowerText) || /\[explicit\]/.test(lowerText)) {
+    return { found: true, type: 'Explicit' };
+  }
+  if (/\(clean\)/.test(lowerText) || /\[clean\]/.test(lowerText)) {
+    return { found: true, type: 'Clean' };
+  }
+
+  return { found: false, type: null };
+}
+
+/**
+ * Función principal de validación de metadata
+ * Retorna un array de alertas encontradas
+ */
+function validateMetadataRules(releaseData) {
+  const alerts = [];
+
+  if (!releaseData) return alerts;
+
+  const tracks = releaseData.trackSections || [];
+
+  // Helper para buscar campos con variantes de nombre
+  const findField = (obj, ...variants) => {
+    for (const key of variants) {
+      if (obj[key] && obj[key] !== '-') return obj[key];
+    }
+    // Búsqueda parcial case-insensitive
+    for (const key of Object.keys(obj)) {
+      const lowerKey = key.toLowerCase();
+      for (const variant of variants) {
+        if (lowerKey.includes(variant.toLowerCase())) {
+          if (obj[key] && obj[key] !== '-') return obj[key];
+        }
+      }
+    }
+    return '';
+  };
+
+  // ===== VALIDACIONES POR TRACK =====
+  tracks.forEach((track, idx) => {
+    const trackNumber = track.displayNumber || idx + 1;
+    const trackContext = `Track ${trackNumber}`;
+    const metadata = track.sections?.Metadata || {};
+    const artists = track.sections?.Artists || {};
+
+    // Obtener campos relevantes (con variantes de nombres)
+    const trackAudioLanguage = findField(metadata, 'Track Audio Language', 'Audio Language', 'Language');
+    const trackVersion = findField(metadata, 'Track Version', 'Version');
+    const trackTitle = track.header || '';
+    const lyricist = findField(artists, 'Lyricist');
+    const composer = findField(artists, 'Composer');
+    const explicitStatus = findField(metadata, 'Explicit', 'Parental Advisory');
+
+    // Debug log para verificar campos extraídos
+    console.log(`[Metadata Validation] ${trackContext}:`, {
+      trackAudioLanguage, trackVersion, explicitStatus, lyricist, composer,
+      allMetadata: Object.keys(metadata),
+      allArtists: Object.keys(artists)
+    });
+
+    // --- Rule: zxx + Lyricist ---
+    if (trackAudioLanguage.toLowerCase() === 'zxx' && lyricist && lyricist !== '-') {
+      alerts.push({
+        type: 'error',
+        rule: 'zxx_with_lyricist',
+        context: trackContext,
+        message: `${trackContext}: Track Audio Language is "zxx" (no linguistic content) but has Lyricist assigned`,
+        field: 'Track Audio Language / Lyricist'
+      });
+    }
+
+    // --- Rule: Instrumental + Lyricist ---
+    const isInstrumental = /instrumental/i.test(trackVersion);
+    if (isInstrumental && lyricist && lyricist !== '-') {
+      alerts.push({
+        type: 'error',
+        rule: 'instrumental_with_lyricist',
+        context: trackContext,
+        message: `${trackContext}: Track Version contains "Instrumental" but has Lyricist assigned`,
+        field: 'Track Version / Lyricist'
+      });
+    }
+
+    // --- Rule: (Explicit) or (Clean) in titles/versions ---
+    const titleCheck = detectExplicitCleanInText(trackTitle);
+    if (titleCheck.found) {
+      alerts.push({
+        type: 'error',
+        rule: 'explicit_clean_in_title',
+        context: trackContext,
+        message: `${trackContext}: Title contains "(${titleCheck.type})" - use Explicit field instead`,
+        field: 'Track Title'
+      });
+    }
+
+    const versionCheck = detectExplicitCleanInText(trackVersion);
+    if (versionCheck.found) {
+      alerts.push({
+        type: 'error',
+        rule: 'explicit_clean_in_version',
+        context: trackContext,
+        message: `${trackContext}: Track Version contains "(${versionCheck.type})"`,
+        field: 'Track Version'
+      });
+    }
+
+    // --- Rule: & in Lyricist or Composer ---
+    if (detectAmpersandInCredits(lyricist)) {
+      alerts.push({
+        type: 'warning',
+        rule: 'ampersand_in_lyricist',
+        context: trackContext,
+        message: `${trackContext}: Lyricist contains "&" - compound credits not allowed`,
+        field: 'Lyricist'
+      });
+    }
+
+    if (detectAmpersandInCredits(composer)) {
+      alerts.push({
+        type: 'warning',
+        rule: 'ampersand_in_composer',
+        context: trackContext,
+        message: `${trackContext}: Composer contains "&" - compound credits not allowed`,
+        field: 'Composer'
+      });
+    }
+
+    // --- Rule: Mixed alphabets in title ---
+    const titleAlphabets = detectMixedAlphabets(trackTitle);
+    if (titleAlphabets.hasMixed) {
+      alerts.push({
+        type: 'warning',
+        rule: 'mixed_alphabets_title',
+        context: trackContext,
+        message: `${trackContext}: Title contains mixed alphabets (${titleAlphabets.scripts.join(', ')}) - possible side-by-side translation`,
+        field: 'Track Title'
+      });
+    }
+
+    // --- Rule: Emojis in metadata ---
+    // Check title
+    const titleEmojis = detectEmojis(trackTitle);
+    if (titleEmojis.hasEmojis) {
+      alerts.push({
+        type: 'warning',
+        rule: 'emoji_in_title',
+        context: trackContext,
+        message: `${trackContext}: Title contains emojis (${titleEmojis.emojis.join(' ')})`,
+        field: 'Track Title'
+      });
+    }
+
+    // Check version
+    const versionEmojis = detectEmojis(trackVersion);
+    if (versionEmojis.hasEmojis) {
+      alerts.push({
+        type: 'warning',
+        rule: 'emoji_in_version',
+        context: trackContext,
+        message: `${trackContext}: Track Version contains emojis (${versionEmojis.emojis.join(' ')})`,
+        field: 'Track Version'
+      });
+    }
+
+    // --- Rule: Clean without Explicit version ---
+    const isClean = explicitStatus.toLowerCase() === 'clean' || explicitStatus.toLowerCase() === 'cleaned';
+    if (isClean) {
+      alerts.push({
+        type: 'info',
+        rule: 'clean_version_check',
+        context: trackContext,
+        message: `${trackContext}: Marked as Clean - verify Explicit version was previously distributed`,
+        field: 'Explicit'
+      });
+    }
+
+    // --- Check emojis and alphabets in artists ---
+    Object.entries(artists).forEach(([role, value]) => {
+      if (!value || value === '-') return;
+
+      const artistEmojis = detectEmojis(value);
+      if (artistEmojis.hasEmojis) {
+        alerts.push({
+          type: 'warning',
+          rule: 'emoji_in_artist',
+          context: trackContext,
+          message: `${trackContext}: ${role} contains emojis (${artistEmojis.emojis.join(' ')})`,
+          field: role
+        });
+      }
+
+      const artistAlphabets = detectMixedAlphabets(value);
+      if (artistAlphabets.hasMixed) {
+        alerts.push({
+          type: 'warning',
+          rule: 'mixed_alphabets_artist',
+          context: trackContext,
+          message: `${trackContext}: ${role} contains mixed alphabets (${artistAlphabets.scripts.join(', ')})`,
+          field: role
+        });
+      }
+    });
+  });
+
+  // ===== RELEASE-LEVEL VALIDATIONS =====
+  const releaseTitle = releaseData.title || '';
+  const basicArtists = releaseData.basicInfo?.Artists || {};
+
+  // --- Release title: mixed alphabets ---
+  const releaseTitleAlphabets = detectMixedAlphabets(releaseTitle);
+  if (releaseTitleAlphabets.hasMixed) {
+    alerts.push({
+      type: 'warning',
+      rule: 'mixed_alphabets_release_title',
+      context: 'Release',
+      message: `Release Title contains mixed alphabets (${releaseTitleAlphabets.scripts.join(', ')}) - possible side-by-side translation`,
+      field: 'Release Title'
+    });
+  }
+
+  // --- Release title: emojis ---
+  const releaseTitleEmojis = detectEmojis(releaseTitle);
+  if (releaseTitleEmojis.hasEmojis) {
+    alerts.push({
+      type: 'warning',
+      rule: 'emoji_in_release_title',
+      context: 'Release',
+      message: `Release Title contains emojis (${releaseTitleEmojis.emojis.join(' ')})`,
+      field: 'Release Title'
+    });
+  }
+
+  // --- Release title: (Explicit) or (Clean) ---
+  const releaseTitleCheck = detectExplicitCleanInText(releaseTitle);
+  if (releaseTitleCheck.found) {
+    alerts.push({
+      type: 'error',
+      rule: 'explicit_clean_in_release_title',
+      context: 'Release',
+      message: `Release Title contains "(${releaseTitleCheck.type})" - use Explicit field instead`,
+      field: 'Release Title'
+    });
+  }
+
+  // --- Basic Artists: & in Lyricist/Composer ---
+  if (detectAmpersandInCredits(basicArtists['Lyricist'])) {
+    alerts.push({
+      type: 'warning',
+      rule: 'ampersand_in_release_lyricist',
+      context: 'Release',
+      message: `Release Lyricist contains "&" - compound credits not allowed`,
+      field: 'Lyricist'
+    });
+  }
+
+  if (detectAmpersandInCredits(basicArtists['Composer'])) {
+    alerts.push({
+      type: 'warning',
+      rule: 'ampersand_in_release_composer',
+      context: 'Release',
+      message: `Release Composer contains "&" - compound credits not allowed`,
+      field: 'Composer'
+    });
+  }
+
+  // --- Basic Artists: emojis and alphabets ---
+  Object.entries(basicArtists).forEach(([role, value]) => {
+    if (!value || value === '-') return;
+
+    const artistEmojis = detectEmojis(value);
+    if (artistEmojis.hasEmojis) {
+      alerts.push({
+        type: 'warning',
+        rule: 'emoji_in_release_artist',
+        context: 'Release',
+        message: `Release ${role} contains emojis (${artistEmojis.emojis.join(' ')})`,
+        field: role
+      });
+    }
+
+    const artistAlphabets = detectMixedAlphabets(value);
+    if (artistAlphabets.hasMixed) {
+      alerts.push({
+        type: 'warning',
+        rule: 'mixed_alphabets_release_artist',
+        context: 'Release',
+        message: `Release ${role} contains mixed alphabets (${artistAlphabets.scripts.join(', ')})`,
+        field: role
+      });
+    }
+  });
+
+  return alerts;
+}
+
+// =====================================================
+// FIN VALIDACIONES DE METADATA
+// =====================================================
 
 // NUEVO: Función para normalizar identificadores de tracks y evitar duplicaciones
 function normalizeTrackIdentifier(trackTitle, trackNumber) {
@@ -1384,6 +1829,19 @@ function renderFullUI() {
           flagType: 'invalidCreditLyricist'
         });
       }
+
+      // ===== VALIDACIONES DE METADATA (QC Rules) =====
+      const metadataAlerts = validateMetadataRules(releaseData);
+      metadataAlerts.forEach(alert => {
+        const color = alert.type === 'error' ? 'red' : (alert.type === 'warning' ? 'yellow' : 'yellow');
+        summaryItems.push({
+          msg: alert.message,
+          color: color,
+          rawMsgKey: alert.rule,
+          flagValue: [alert.field],
+          flagType: `metadata_${alert.rule}`
+        });
+      });
 
       // Usar la versión mejorada de warnings (incluye duración robusta)
       showWarningsV2(releaseData).forEach(w => summaryItems.push(w));
