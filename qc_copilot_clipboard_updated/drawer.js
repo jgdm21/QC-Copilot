@@ -3450,17 +3450,12 @@ function escapeRegExp(string) {
 
 // NUEVO: Función para manejar cambios de estado de modales importantes
 function handleImportantModalStateChange(data) {
+  // No mostrar ninguna advertencia - solo log silencioso
   const { open } = data;
-  
   if (open) {
-    console.log('QC Copilot: Important modal opened, showing warning');
-    showImportantModalWarning();
-    
-    // MODIFICADO: Eliminada la notificación de interrupción de audio analysis
-    // Ya no se muestra la alerta cuando se abre un modal importante
+    console.log('QC Copilot: Important modal opened');
   } else {
-    console.log('QC Copilot: Important modal closed, hiding warning');
-    hideImportantModalWarning();
+    console.log('QC Copilot: Important modal closed');
   }
 }
 

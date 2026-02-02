@@ -543,23 +543,28 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             //   (catches "The Bad Bunny" or "I feel like Bad Bunny")
             const foundCurated = new Set();
 
-            // Separators used in artist name fields (·, -, &, feat, ft, x, /, +, ,)
-            const artistSeparatorRegex = /[\·\-\&\/\+\,]|\s+feat\.?\s+|\s+ft\.?\s+|\s+x\s+/gi;
+            // Separators used in artist name fields - split BEFORE normalizing
+            // Includes: · (middle dot), -, &, /, +, ,, feat, ft, x (as word)
+            const artistSeparatorRegex = /[\u00B7\u2022\u2027\u30FB\-\&\/\+\,]|\s+feat\.?\s+|\s+ft\.?\s+|\s+x\s+/gi;
 
             // Build list of artist name tokens (split by separators) for single-word matching
             const artistTokensSet = new Set();
             // Also keep full names for exact matching
             const artistFullNamesSet = new Set();
             try {
-              const processArtistName = (s) => {
-                const v = normalizeForMatch(s);
-                if (!v) return;
-                // Add full name
-                artistFullNamesSet.add(v);
-                // Split by separators and add each token
-                const tokens = v.split(artistSeparatorRegex)
+              const processArtistName = (rawName) => {
+                const s = String(rawName || '').trim();
+                if (!s) return;
+
+                // Add normalized full name
+                const fullNorm = normalizeForMatch(s);
+                if (fullNorm) artistFullNamesSet.add(fullNorm);
+
+                // Split by separators BEFORE normalizing to catch · and other symbols
+                const tokens = s.split(artistSeparatorRegex)
                   .map(t => t.trim())
                   .filter(t => t.length > 0);
+
                 tokens.forEach(token => {
                   const normToken = normalizeForMatch(token);
                   if (normToken) artistTokensSet.add(normToken);
