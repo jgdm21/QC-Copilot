@@ -4768,4 +4768,359 @@ function closeModalSafely(modal) {
       return [];
     }
   }
+
+  // =====================================================
+  // ACTION BUTTON CONFIRMATION SYSTEM
+  // =====================================================
+
+  // Store current QC flags received from drawer
+  let qcCurrentFlags = null;
+  let qcSupportLevel = null;
+
+  // Listen for flags updates from drawer
+  window.addEventListener('message', (event) => {
+    if (event.data && event.data.tipo === 'qcFlagsUpdate') {
+      qcCurrentFlags = event.data.flags || {};
+      console.log('QC Copilot: Received flags update:', qcCurrentFlags);
+    }
+  });
+
+  // Function to get support level from DOM
+  function getSupportLevelFromDOM() {
+    // Look for the support level text in the Client section
+    // The element is: <p class="m-0 text-muted fs-6">Premium</p> or <p class="m-0 text-muted fs-6">Standard</p>
+    const supportLevelElements = document.querySelectorAll('p.m-0.text-muted.fs-6');
+    for (const el of supportLevelElements) {
+      const text = (el.textContent || '').trim().toLowerCase();
+      if (text === 'premium' || text === 'standard') {
+        console.log('QC Copilot: Detected support level:', text);
+        return text;
+      }
+    }
+    // Fallback: check if any parent contains "Support Level" label
+    const allLabels = document.querySelectorAll('dt, label, th');
+    for (const label of allLabels) {
+      if ((label.textContent || '').toLowerCase().includes('support level')) {
+        const valueEl = label.nextElementSibling || label.parentElement?.querySelector('dd, td, p');
+        if (valueEl) {
+          const text = (valueEl.textContent || '').trim().toLowerCase();
+          if (text === 'premium' || text === 'standard') {
+            console.log('QC Copilot: Detected support level from label:', text);
+            return text;
+          }
+        }
+      }
+    }
+    console.log('QC Copilot: Support level not found, defaulting to standard');
+    return 'standard'; // Default to standard for safety
+  }
+
+  // Function to request current flags from drawer
+  function requestCurrentFlags() {
+    const iframe = document.getElementById('qc-copilot-sidebar')?.querySelector('iframe#qc-sidebar-iframe');
+    if (iframe?.contentWindow) {
+      iframe.contentWindow.postMessage({ tipo: 'requestFlags' }, '*');
+    }
+  }
+
+  // Function to check if there are critical alerts that need confirmation for approve
+  function hasCriticalAlertsForApprove() {
+    if (!qcCurrentFlags) return { hasCritical: false, alerts: [] };
+
+    const alerts = [];
+
+    if (qcCurrentFlags.curatedArtists && qcCurrentFlags.curatedArtists.length > 0) {
+      alerts.push({
+        type: 'curated artist',
+        items: qcCurrentFlags.curatedArtists
+      });
+    }
+
+    if (qcCurrentFlags.blacklistArtists && qcCurrentFlags.blacklistArtists.length > 0) {
+      alerts.push({
+        type: 'blacklisted artist',
+        items: qcCurrentFlags.blacklistArtists
+      });
+    }
+
+    if (qcCurrentFlags.blacklistLabels && qcCurrentFlags.blacklistLabels.length > 0) {
+      alerts.push({
+        type: 'blacklisted label',
+        items: qcCurrentFlags.blacklistLabels
+      });
+    }
+
+    if (qcCurrentFlags.blacklistEmails && qcCurrentFlags.blacklistEmails.length > 0) {
+      alerts.push({
+        type: 'blacklisted user',
+        items: qcCurrentFlags.blacklistEmails
+      });
+    }
+
+    return {
+      hasCritical: alerts.length > 0,
+      alerts: alerts
+    };
+  }
+
+  // Function to show informational modal (non-blocking, just "Got it" button)
+  function showQCInfoModal(title, message, headerColor = '#f59e0b') {
+    // Remove any existing modal
+    const existingModal = document.getElementById('qc-info-modal');
+    if (existingModal) existingModal.remove();
+
+    const gradientEnd = headerColor === '#f59e0b' ? '#d97706' : '#1d4ed8';
+
+    // Create modal HTML
+    const modalHtml = `
+      <div id="qc-info-modal" style="
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.6);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 999999;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      ">
+        <div style="
+          background: white;
+          border-radius: 12px;
+          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+          max-width: 450px;
+          width: 90%;
+          overflow: hidden;
+          animation: qcModalSlideIn 0.2s ease-out;
+        ">
+          <div style="
+            background: linear-gradient(135deg, ${headerColor} 0%, ${gradientEnd} 100%);
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+          ">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <span style="color: white; font-weight: 600; font-size: 16px;">${title}</span>
+          </div>
+          <div style="padding: 20px;">
+            <p style="margin: 0 0 20px 0; color: #374151; font-size: 14px; line-height: 1.6;">
+              ${message}
+            </p>
+            <div style="display: flex; justify-content: flex-end;">
+              <button id="qc-modal-gotit" style="
+                padding: 10px 24px;
+                border: none;
+                background: linear-gradient(135deg, ${headerColor} 0%, ${gradientEnd} 100%);
+                border-radius: 8px;
+                font-size: 14px;
+                font-weight: 500;
+                color: white;
+                cursor: pointer;
+                transition: all 0.15s ease;
+              ">Got it</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <style>
+        @keyframes qcModalSlideIn {
+          from {
+            opacity: 0;
+            transform: scale(0.95) translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
+        }
+        #qc-modal-gotit:hover {
+          filter: brightness(1.1);
+        }
+      </style>
+    `;
+
+    // Insert modal into page
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+    const modal = document.getElementById('qc-info-modal');
+    const gotItBtn = document.getElementById('qc-modal-gotit');
+
+    // Handle close
+    const handleClose = () => {
+      modal.remove();
+    };
+
+    gotItBtn.addEventListener('click', handleClose);
+
+    // Close on backdrop click
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) handleClose();
+    });
+
+    // Close on Escape key
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') {
+        handleClose();
+        document.removeEventListener('keydown', handleEscape);
+      }
+    };
+    document.addEventListener('keydown', handleEscape);
+
+    // Focus the button
+    gotItBtn.focus();
+  }
+
+  // Function to show Standard client info modal
+  function showStandardClientInfoModal(actionName) {
+    const message = `
+      This client has <strong>Standard</strong> support level.<br><br>
+      The "<strong>${actionName}</strong>" action is typically only available for Premium clients.
+    `;
+    showQCInfoModal('Standard Support Client', message, '#3b82f6');
+  }
+
+  // Function to show approve alerts info modal
+  function showApproveAlertsInfoModal(alerts) {
+    const alertMessages = alerts.map(alert => {
+      const itemsList = alert.items.slice(0, 3).join(', ');
+      const moreCount = alert.items.length > 3 ? ` and ${alert.items.length - 3} more` : '';
+      return `• <strong>${alert.type}</strong>: ${itemsList}${moreCount}`;
+    }).join('<br>');
+
+    const message = `
+      You are about to approve a release with the following alerts:<br><br>
+      ${alertMessages}
+    `;
+    showQCInfoModal('Approval Notice', message, '#f59e0b');
+  }
+
+  // Setup button interceptors (informational only - does not block actions)
+  function setupActionButtonInterceptors() {
+    console.log('QC Copilot: Setting up action button interceptors...');
+
+    // Request current flags from drawer
+    requestCurrentFlags();
+
+    // Button selectors
+    const approveBtn = document.getElementById('button-revision-approve');
+    const askModificationBtn = document.getElementById('button-revision-ask-modification');
+    const askDocumentationBtn = document.getElementById('button-revision-ask-documentation');
+    const rejectBtn = document.getElementById('button-revision-reject');
+
+    // Track if we've already set up interceptors
+    const INTERCEPTOR_ATTR = 'data-qc-interceptor-setup';
+
+    // Approve button - show info modal if critical alerts (non-blocking)
+    if (approveBtn && !approveBtn.hasAttribute(INTERCEPTOR_ATTR)) {
+      approveBtn.setAttribute(INTERCEPTOR_ATTR, 'true');
+
+      approveBtn.addEventListener('click', (e) => {
+        // Request latest flags
+        requestCurrentFlags();
+
+        // Small delay to ensure flags are received
+        setTimeout(() => {
+          const { hasCritical, alerts } = hasCriticalAlertsForApprove();
+
+          if (hasCritical) {
+            console.log('QC Copilot: Critical alerts detected, showing info modal');
+            showApproveAlertsInfoModal(alerts);
+          }
+        }, 50);
+
+        // Don't prevent the action - just show info
+      }, false); // Use bubble phase so action proceeds normally
+
+      console.log('QC Copilot: Approve button interceptor set up (informational)');
+    }
+
+    // Ask for Modification button - show info modal for Standard clients (non-blocking)
+    if (askModificationBtn && !askModificationBtn.hasAttribute(INTERCEPTOR_ATTR)) {
+      askModificationBtn.setAttribute(INTERCEPTOR_ATTR, 'true');
+
+      askModificationBtn.addEventListener('click', (e) => {
+        const supportLevel = getSupportLevelFromDOM();
+
+        if (supportLevel === 'standard') {
+          console.log('QC Copilot: Standard client detected, showing info for Ask for Modification');
+          showStandardClientInfoModal('Ask for Modification');
+        }
+
+        // Don't prevent the action - just show info
+      }, false);
+
+      console.log('QC Copilot: Ask for Modification button interceptor set up (informational)');
+    }
+
+    // Ask for Documentation button - show info modal for Standard clients (non-blocking)
+    if (askDocumentationBtn && !askDocumentationBtn.hasAttribute(INTERCEPTOR_ATTR)) {
+      askDocumentationBtn.setAttribute(INTERCEPTOR_ATTR, 'true');
+
+      askDocumentationBtn.addEventListener('click', (e) => {
+        const supportLevel = getSupportLevelFromDOM();
+
+        if (supportLevel === 'standard') {
+          console.log('QC Copilot: Standard client detected, showing info for Ask for Documentation');
+          showStandardClientInfoModal('Ask for Documentation');
+        }
+
+        // Don't prevent the action - just show info
+      }, false);
+
+      console.log('QC Copilot: Ask for Documentation button interceptor set up');
+    }
+
+    // Reject button - no interceptor needed per requirements
+    if (rejectBtn) {
+      console.log('QC Copilot: Reject button found (no interceptor needed)');
+    }
+  }
+
+  // Initialize button interceptors when DOM is ready and periodically check for buttons
+  function initActionButtonInterceptors() {
+    // Initial setup
+    setupActionButtonInterceptors();
+
+    // Also observe DOM for dynamically added buttons
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.addedNodes.length > 0) {
+          // Check if any action buttons were added
+          const hasActionButtons = document.getElementById('button-revision-approve') ||
+                                   document.getElementById('button-revision-ask-modification') ||
+                                   document.getElementById('button-revision-ask-documentation');
+          if (hasActionButtons) {
+            setupActionButtonInterceptors();
+          }
+        }
+      }
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+
+    console.log('QC Copilot: Action button interceptor system initialized');
+  }
+
+  // Start initialization after a short delay to ensure page is ready
+  setTimeout(initActionButtonInterceptors, 1000);
+
+  // Also re-check when URL changes (SPA navigation)
+  let lastUrl = location.href;
+  new MutationObserver(() => {
+    if (location.href !== lastUrl) {
+      lastUrl = location.href;
+      setTimeout(initActionButtonInterceptors, 1000);
+    }
+  }).observe(document, { subtree: true, childList: true });
+
 })();

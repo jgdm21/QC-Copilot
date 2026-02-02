@@ -873,11 +873,14 @@ let currentState = {
 // MODIFICADO: Función principal de update mejorada
 function updateUI(newData) {
   currentState = { ...currentState, ...newData };
-  
+
   console.log('Drawer updateUI recibió:', currentState);
 
-  currentState.potentialMashups = checkLooseXInTitles(currentState.releaseData); 
+  currentState.potentialMashups = checkLooseXInTitles(currentState.releaseData);
   currentState.suspiciousEmailDomain = checkSuspiciousEmailDomain(currentState.releaseData);
+
+  // Send flags to content.js for action button validation
+  sendFlagsToContentScript();
 
   const loading = document.getElementById('loading');
   const results = document.getElementById('qc-results');
@@ -2517,9 +2520,27 @@ itemContent += `</div>`;
 document.getElementById('qc-results').style.display = 'none';
 document.getElementById('loading').style.display = 'block';
 
+// Function to send current flags to content.js
+function sendFlagsToContentScript() {
+  if (window.parent && window.parent.postMessage) {
+    window.parent.postMessage({
+      tipo: 'qcFlagsUpdate',
+      flags: currentState.flags || {}
+    }, '*');
+    console.log('Drawer: Sent flags to content script:', currentState.flags);
+  }
+}
+
 window.addEventListener('message', e => {
   console.log('Drawer recibió mensaje:', e.data);
-  
+
+  // Handle request for current flags from content.js
+  if (e.data?.tipo === 'requestFlags') {
+    console.log('Drawer: Received request for flags');
+    sendFlagsToContentScript();
+    return;
+  }
+
   if (e.data?.tipo === 'initRelease') {
     document.getElementById('loading').style.display = 'none';
     document.getElementById('qc-results').style.display = 'block';

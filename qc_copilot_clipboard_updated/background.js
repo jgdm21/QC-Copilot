@@ -537,29 +537,45 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
             // ---- Curated artists ----
             // Heuristics to reduce false positives:
-            // - Single-word names (any length): match ONLY within artist fields
-            //   (avoids "Shame" in title "Shame on U")
-            // - Multi-word names (e.g., "Bad Bunny"): also search in titles/all text
-            //   (catches "I feel like Bad Bunny" in titles)
-            // - For very short names (len <=2): require exact equality of an artist token
+            // - Single-word names: tokenize artist names by separators and check for exact token match
+            //   (avoids "Silva" matching "Marcela Silva" but catches "Wali · POP ID" or "POP ID · Wali")
+            // - Multi-word names (e.g., "Bad Bunny"): allow partial match in all text
+            //   (catches "The Bad Bunny" or "I feel like Bad Bunny")
             const foundCurated = new Set();
-            // Build artists-only normalized text and token set
-            const artistNormValues = [];
+
+            // Separators used in artist name fields (·, -, &, feat, ft, x, /, +, ,)
+            const artistSeparatorRegex = /[\·\-\&\/\+\,]|\s+feat\.?\s+|\s+ft\.?\s+|\s+x\s+/gi;
+
+            // Build list of artist name tokens (split by separators) for single-word matching
+            const artistTokensSet = new Set();
+            // Also keep full names for exact matching
+            const artistFullNamesSet = new Set();
             try {
-              const addVal = (s) => { const v = normalizeForMatch(s); if (v) artistNormValues.push(v); };
+              const processArtistName = (s) => {
+                const v = normalizeForMatch(s);
+                if (!v) return;
+                // Add full name
+                artistFullNamesSet.add(v);
+                // Split by separators and add each token
+                const tokens = v.split(artistSeparatorRegex)
+                  .map(t => t.trim())
+                  .filter(t => t.length > 0);
+                tokens.forEach(token => {
+                  const normToken = normalizeForMatch(token);
+                  if (normToken) artistTokensSet.add(normToken);
+                });
+              };
               const aRelease = rd.basicInfo?.Artists || {};
-              Object.values(aRelease).forEach(addVal);
+              Object.values(aRelease).forEach(processArtistName);
               const tss2 = Array.isArray(rd.trackSections) ? rd.trackSections : [];
               tss2.forEach(t => {
                 const a = t?.sections?.Artists || {};
-                Object.values(a).forEach(addVal);
+                Object.values(a).forEach(processArtistName);
               });
             } catch(_) {}
-            const artistsNormText = artistNormValues.join(' ').trim();
+
             const pad = (s) => ` ${s} `;
             const paddedAll = pad(allTextNorm);
-            const paddedArtists = pad(artistsNormText);
-            const artistWordSet = new Set(artistsNormText.split(' ').filter(Boolean));
 
             curatedList.forEach(n => {
               const original = String(n).trim();
@@ -570,17 +586,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
               const wordCount = norm.split(' ').filter(Boolean).length;
               const isMultiWord = wordCount >= 2;
 
-              if (norm.length <= 2) {
-                // Very short names: only if an artist token equals exactly
-                if (artistWordSet.has(norm)) foundCurated.add(original);
-              } else if (isMultiWord) {
-                // Multi-word names (e.g., "Bad Bunny"): search in ALL text including titles
-                // because multi-word matches are unlikely to be false positives
+              if (isMultiWord) {
+                // Multi-word names (e.g., "Bad Bunny"): search in ALL text
+                // Allows "The Bad Bunny", "Bad Bunny Tribute", etc.
                 if (paddedAll.includes(` ${norm} `)) foundCurated.add(original);
               } else {
-                // Single-word names (3+ chars): ONLY match within artist fields
-                // This prevents "Shame" matching in title "Shame on U"
-                if (paddedArtists.includes(` ${norm} `)) foundCurated.add(original);
+                // Single-word names: check if it matches any token from artist names
+                // "Wali" matches "Wali · POP ID" (token: "Wali")
+                // "Silva" does NOT match "Marcela Silva" (no separator, full name is "marcela silva")
+                if (artistTokensSet.has(norm)) foundCurated.add(original);
               }
             });
             if (foundCurated.size) {
