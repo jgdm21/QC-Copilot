@@ -441,31 +441,48 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             ]);
 
             // Aggregate text for matching
-            const allTextRaw = String(rd.allTextRaw || '').replace(/\s+/g, ' ').trim();
+            // Remove bracketed tags like [Curated], [Verified], etc. before normalizing
+            // Also remove standalone "Curated" word (backoffice sometimes adds it without brackets)
+            // This prevents tags from interfering with artist name matching
+            const allTextRaw = String(rd.allTextRaw || '')
+              .replace(/\s*\[[^\]]*\]\s*/g, ' ')  // Remove [anything] tags
+              .replace(/\bCurated\b/gi, '')       // Remove standalone "Curated" word
+              .replace(/\s+/g, ' ')
+              .trim();
             const allText = allTextRaw.toLowerCase();
             const allTextNorm = normalizeForMatch(allTextRaw);
 
             // Build curated list from the requested column
             let curatedList = [];
             try {
+              console.log('[Curated Debug] curatedTable rows:', curatedTable?.length || 0);
               if (Array.isArray(curatedTable) && curatedTable.length > 0) {
                 const header = (curatedTable[0] || []).map(x => String(x || ''));
+                console.log('[Curated Debug] CSV headers:', header);
                 const norm = s => String(s || '').toLowerCase().replace(/\s+/g, '');
                 const target = 'spotifyandapplecombined';
                 let idx = header.findIndex(h => norm(h) === target);
+                console.log('[Curated Debug] Target column index for "spotifyandapplecombined":', idx);
                 if (idx === -1) {
                   // Fallback: pick a column that mentions spotify and apple
                   idx = header.findIndex(h => {
                     const l = String(h || '').toLowerCase();
                     return l.includes('spotify') && l.includes('apple');
                   });
+                  console.log('[Curated Debug] Fallback column index:', idx);
                 }
                 if (idx === -1) idx = 0; // ultimate fallback: first column
                 curatedList = curatedTable.slice(1)
                   .map(r => String((r && r[idx]) || '').trim())
                   .filter(Boolean);
+                console.log('[Curated Debug] Total curated artists loaded:', curatedList.length);
+                // Check if Chris Brown and Alex Zurdo are in the list
+                const hasChrisBrown = curatedList.some(a => a.toLowerCase().includes('chris brown'));
+                const hasAlexZurdo = curatedList.some(a => a.toLowerCase().includes('alex zurdo'));
+                console.log('[Curated Debug] Chris Brown in list?', hasChrisBrown);
+                console.log('[Curated Debug] Alex Zurdo in list?', hasAlexZurdo);
               }
-            } catch (_) {}
+            } catch (e) { console.error('[Curated Debug] Error building curated list:', e); }
 
             // ---- Suspicious terms ----
             const foundTerms = new Set();
@@ -549,7 +566,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             const artistFullNamesSet = new Set();
             try {
               const processArtistName = (rawName) => {
-                const s = String(rawName || '').trim();
+                // Remove bracketed tags like [Curated], [Verified], etc.
+                // Also remove standalone "Curated" word (backoffice sometimes adds it without brackets)
+                const s = String(rawName || '')
+                  .replace(/\s*\[[^\]]*\]\s*/g, ' ')  // Remove [anything] tags
+                  .replace(/\bCurated\b/gi, '')       // Remove standalone "Curated" word
+                  .replace(/\s+/g, ' ')
+                  .trim();
                 if (!s) return;
 
                 // Add normalized full name
@@ -558,15 +581,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
                 // Split by common separators BEFORE normalizing
                 // Use a simple character class approach for reliability
-                // Separators: · (various unicode), -, &, /, +, ,, |, ;
+                // Separators: · (various unicode middle dots), -, &, /, +, ,, |, ;
                 // Also split on "feat", "ft", " x " patterns
                 let workingStr = s;
                 // Replace word-based separators first
                 workingStr = workingStr.replace(/\s+feat\.?\s+/gi, '|||');
                 workingStr = workingStr.replace(/\s+ft\.?\s+/gi, '|||');
                 workingStr = workingStr.replace(/\s+x\s+/gi, '|||');
-                // Replace character separators
-                workingStr = workingStr.replace(/[·•‧・\-\&\/\+\,\|\;]/g, '|||');
+                // Replace character separators (including various unicode middle dots and bullets)
+                // Unicode middle dots: · (U+00B7), • (U+2022), ‧ (U+2027), ・ (U+30FB), ● (U+25CF), ◦ (U+25E6), ⋅ (U+22C5), ∙ (U+2219)
+                workingStr = workingStr.replace(/[·•‧・●◦⋅∙\u00B7\u2022\u2027\u30FB\u25CF\u25E6\u22C5\u2219\-\&\/\+\,\|\;]/g, '|||');
 
                 const tokens = workingStr.split('|||')
                   .map(t => t.trim())
@@ -583,10 +607,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 });
               };
               const aRelease = rd.basicInfo?.Artists || {};
+              console.log('[Curated Debug] basicInfo.Artists:', JSON.stringify(aRelease));
               Object.values(aRelease).forEach(processArtistName);
               const tss2 = Array.isArray(rd.trackSections) ? rd.trackSections : [];
-              tss2.forEach(t => {
+              tss2.forEach((t, idx) => {
                 const a = t?.sections?.Artists || {};
+                console.log(`[Curated Debug] Track ${idx + 1} Artists:`, JSON.stringify(a));
                 Object.values(a).forEach(processArtistName);
               });
             } catch(e) { console.error('[Curated Debug] Error processing artists:', e); }
@@ -596,6 +622,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
             const pad = (s) => ` ${s} `;
             const paddedAll = pad(allTextNorm);
+
+            // Debug: Check if Chris Brown and Alex Zurdo are in the text
+            console.log('[Curated Debug] allTextNorm length:', allTextNorm.length);
+            console.log('[Curated Debug] allTextNorm sample (first 500 chars):', allTextNorm.substring(0, 500));
+            console.log('[Curated Debug] Contains "chris brown"?', allTextNorm.includes('chris brown'));
+            console.log('[Curated Debug] Contains " chris brown "?', paddedAll.includes(' chris brown '));
+            console.log('[Curated Debug] Contains "alex zurdo"?', allTextNorm.includes('alex zurdo'));
+            console.log('[Curated Debug] Contains " alex zurdo "?', paddedAll.includes(' alex zurdo '));
 
             curatedList.forEach(n => {
               const original = String(n).trim();
@@ -609,7 +643,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
               if (isMultiWord) {
                 // Multi-word names (e.g., "Bad Bunny"): search in ALL text
                 // Allows "The Bad Bunny", "Bad Bunny Tribute", etc.
-                if (paddedAll.includes(` ${norm} `)) foundCurated.add(original);
+                const searchTerm = ` ${norm} `;
+                const found = paddedAll.includes(searchTerm);
+                if (found) {
+                  console.log(`[Curated Debug] MATCH! Multi-word "${original}" (norm: "${norm}") found in text`);
+                  foundCurated.add(original);
+                }
               } else {
                 // Single-word names: check if it matches any token from artist names
                 // "Wali" matches "Wali · POP ID" (token: "Wali")

@@ -772,7 +772,7 @@
 
     // ==== 5) basicInfo y ARTISTAS ====
     const basicInfo = { Metadata: {}, Artists: {} };
-    const roles = ['Primary Artist', 'Featured Artist', 'Remixer', 'Composer', 'Lyricist', 'Producer', 'Publisher', 'Contributor'];
+    const roles = ['Primary', 'Primary Artist', 'Featured Artist', 'Remixer', 'Composer', 'Lyricist', 'Producer', 'Publisher', 'Contributor', 'Vocals', 'Artist'];
     document.querySelectorAll('h5.font-extra-bold').forEach(h5 => {
       if (h5.innerText.trim() !== 'Basic Information') return;
       h5.closest('.pt-3')?.querySelectorAll('div.row.py-2').forEach(row => {
@@ -782,6 +782,7 @@
         const key = divs[0].innerText.trim();
         const val = divs[1].innerText.trim();
         if (!key || key === 'Release Date') return;
+        console.log(`[BasicInfo Debug] Field: "${key}" = "${val}" | isRole: ${roles.includes(key)}`);
         if (roles.includes(key)) basicInfo.Artists[key] = val;
         else basicInfo.Metadata[key] = val;
       });
@@ -922,6 +923,7 @@
           const key = divs[0].innerText.trim();
           const val = divs[1].innerText.trim();
           if (!key || key === 'Release Date') return;
+          console.log(`[Track Debug] Field: "${key}" = "${val}" | isRole: ${roles.includes(key)}`);
           if (roles.includes(key)) sections.Artists[key] = val;
           else sections.Metadata[key] = val;
         });
