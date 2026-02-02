@@ -430,19 +430,58 @@ function cleanStrSimple(str) {
   return result;
 }
 
-// Mejorar la búsqueda de coincidencias para títulos no latinos
+// Mejorar la búsqueda de coincidencias para títulos - con filtros para evitar falsos positivos
 function findTitleMatch(title, allTracks) {
   if (!allTracks || !allTracks.length) return null;
-  
-  // Detectar si el título contiene caracteres no latinos
-  const hasNonLatinChars = /[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\u0600-\u06ff\u0590-\u05ff\u0400-\u04ff]/u.test(title);
-  
-  if (hasNonLatinChars) return null;
-  
-  const exactMatch = allTracks.find(t => t.track === title);
+  if (!title || typeof title !== 'string') return null;
+
+  const titleTrimmed = title.trim();
+
+  // 1. Filtrar títulos que son solo números (años como "2020", "2024", etc.)
+  if (/^\d+$/.test(titleTrimmed)) {
+    console.log(`[findTitleMatch] Skipping numeric-only title: "${titleTrimmed}"`);
+    return null;
+  }
+
+  // 2. Filtrar títulos muy cortos (menos de 3 caracteres después de limpiar)
+  const tClean = cleanStrSimple(titleTrimmed);
+  if (tClean.length < 3) {
+    console.log(`[findTitleMatch] Skipping too-short title: "${titleTrimmed}" (clean: "${tClean}")`);
+    return null;
+  }
+
+  // 3. Filtrar títulos que son solo números después de limpiar
+  if (/^\d+$/.test(tClean)) {
+    console.log(`[findTitleMatch] Skipping numeric-only cleaned title: "${titleTrimmed}" -> "${tClean}"`);
+    return null;
+  }
+
+  // 4. Detectar si el título contiene SOLO caracteres no latinos (sin letras latinas)
+  const hasNonLatinChars = /[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\u0600-\u06ff\u0590-\u05ff\u0400-\u04ff]/u.test(titleTrimmed);
+  const hasLatinChars = /[a-zA-Z]/.test(titleTrimmed);
+
+  // Si tiene caracteres no latinos y NO tiene caracteres latinos, skip
+  if (hasNonLatinChars && !hasLatinChars) {
+    console.log(`[findTitleMatch] Skipping non-Latin only title: "${titleTrimmed}"`);
+    return null;
+  }
+
+  // 5. Filtrar títulos genéricos comunes que causan falsos positivos
+  const genericTitles = [
+    'intro', 'outro', 'interlude', 'skit', 'untitled', 'track', 'bonus',
+    'remix', 'instrumental', 'acoustic', 'live', 'demo', 'version',
+    'part 1', 'part 2', 'part 3', 'vol 1', 'vol 2', 'chapter'
+  ];
+  if (genericTitles.includes(tClean)) {
+    console.log(`[findTitleMatch] Skipping generic title: "${titleTrimmed}"`);
+    return null;
+  }
+
+  // Buscar coincidencia exacta primero
+  const exactMatch = allTracks.find(t => t.track === titleTrimmed);
   if (exactMatch) return exactMatch;
-  
-  const tClean = cleanStrSimple(title); 
+
+  // Buscar coincidencia con título limpio
   return allTracks.find(t => cleanStrSimple(t.track) === tClean);
 }
 
