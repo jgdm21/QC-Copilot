@@ -959,18 +959,18 @@ function detectMixedAlphabets(text) {
 
 /**
  * Detecta emojis en un texto
+ * Usa un enfoque más conservador para evitar falsos positivos con números y texto normal
  */
 function detectEmojis(text) {
   if (!text || typeof text !== 'string') return { hasEmojis: false, emojis: [] };
 
-  // Regex para detectar emojis (incluyendo emoji sequences, ZWJ sequences, etc.)
-  const emojiRegex = /(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F|\p{Emoji_Modifier_Base}\p{Emoji_Modifier}?|\p{Emoji_Component})+/gu;
+  // Regex más específica para emojis visuales reales
+  // Excluye números, # y * que son Emoji_Component pero no emojis visuales
+  const emojiRegex = /(?:[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F600}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{231A}-\u{231B}]|[\u{23E9}-\u{23F3}]|[\u{23F8}-\u{23FA}]|[\u{25AA}-\u{25AB}]|[\u{25B6}]|[\u{25C0}]|[\u{25FB}-\u{25FE}]|[\u{2614}-\u{2615}]|[\u{2648}-\u{2653}]|[\u{267F}]|[\u{2693}]|[\u{26A1}]|[\u{26AA}-\u{26AB}]|[\u{26BD}-\u{26BE}]|[\u{26C4}-\u{26C5}]|[\u{26CE}]|[\u{26D4}]|[\u{26EA}]|[\u{26F2}-\u{26F3}]|[\u{26F5}]|[\u{26FA}]|[\u{26FD}]|[\u{2702}]|[\u{2705}]|[\u{2708}-\u{270D}]|[\u{270F}]|[\u{2712}]|[\u{2714}]|[\u{2716}]|[\u{271D}]|[\u{2721}]|[\u{2728}]|[\u{2733}-\u{2734}]|[\u{2744}]|[\u{2747}]|[\u{274C}]|[\u{274E}]|[\u{2753}-\u{2755}]|[\u{2757}]|[\u{2763}-\u{2764}]|[\u{2795}-\u{2797}]|[\u{27A1}]|[\u{27B0}]|[\u{27BF}]|[\u{2934}-\u{2935}]|[\u{2B05}-\u{2B07}]|[\u{2B1B}-\u{2B1C}]|[\u{2B50}]|[\u{2B55}]|[\u{3030}]|[\u{303D}]|[\u{3297}]|[\u{3299}])+/gu;
 
   const matches = text.match(emojiRegex) || [];
-  // Filtrar caracteres que no son realmente emojis visuales (como # o *)
-  const emojis = matches.filter(e => !/^[#*0-9]$/.test(e));
 
-  return { hasEmojis: emojis.length > 0, emojis };
+  return { hasEmojis: matches.length > 0, emojis: matches };
 }
 
 /**
@@ -1254,8 +1254,13 @@ function validateMetadataRules(releaseData) {
   }
 
   // --- Basic Artists: emojis and alphabets ---
+  // Exclude non-artist fields that might be captured (C Line, P Line, etc.)
+  const nonArtistFields = ['C Line', 'P Line', 'Label', 'UPC', 'ISRC', 'Territories', 'Language', 'Genre', 'Version'];
+
   Object.entries(basicArtists).forEach(([role, value]) => {
     if (!value || value === '-') return;
+    // Skip non-artist fields
+    if (nonArtistFields.some(f => role.toLowerCase().includes(f.toLowerCase()))) return;
 
     const artistEmojis = detectEmojis(value);
     if (artistEmojis.hasEmojis) {

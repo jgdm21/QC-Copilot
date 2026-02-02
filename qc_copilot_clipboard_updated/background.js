@@ -600,9 +600,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
                 tokens.forEach(token => {
                   const normToken = normalizeForMatch(token);
-                  if (normToken) {
+                  // Only add tokens with at least 3 characters to avoid false positives
+                  if (normToken && normToken.length >= 3) {
                     artistTokensSet.add(normToken);
                     console.log(`[Curated Debug] Added token: "${normToken}"`);
+                  } else if (normToken) {
+                    console.log(`[Curated Debug] Skipped short token: "${normToken}" (length: ${normToken.length})`);
                   }
                 });
               };
@@ -635,7 +638,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
               const original = String(n).trim();
               if (!original) return;
               const norm = normalizeForMatch(original);
-              if (!norm) return;
+              // Skip curated names that normalize to less than 3 characters
+              if (!norm || norm.length < 3) return;
 
               const wordCount = norm.split(' ').filter(Boolean).length;
               const isMultiWord = wordCount >= 2;
