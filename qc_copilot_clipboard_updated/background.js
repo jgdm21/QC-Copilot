@@ -543,10 +543,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             //   (catches "The Bad Bunny" or "I feel like Bad Bunny")
             const foundCurated = new Set();
 
-            // Separators used in artist name fields - split BEFORE normalizing
-            // Includes: · (middle dot), -, &, /, +, ,, feat, ft, x (as word)
-            const artistSeparatorRegex = /[\u00B7\u2022\u2027\u30FB\-\&\/\+\,]|\s+feat\.?\s+|\s+ft\.?\s+|\s+x\s+/gi;
-
             // Build list of artist name tokens (split by separators) for single-word matching
             const artistTokensSet = new Set();
             // Also keep full names for exact matching
@@ -560,14 +556,30 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 const fullNorm = normalizeForMatch(s);
                 if (fullNorm) artistFullNamesSet.add(fullNorm);
 
-                // Split by separators BEFORE normalizing to catch · and other symbols
-                const tokens = s.split(artistSeparatorRegex)
+                // Split by common separators BEFORE normalizing
+                // Use a simple character class approach for reliability
+                // Separators: · (various unicode), -, &, /, +, ,, |, ;
+                // Also split on "feat", "ft", " x " patterns
+                let workingStr = s;
+                // Replace word-based separators first
+                workingStr = workingStr.replace(/\s+feat\.?\s+/gi, '|||');
+                workingStr = workingStr.replace(/\s+ft\.?\s+/gi, '|||');
+                workingStr = workingStr.replace(/\s+x\s+/gi, '|||');
+                // Replace character separators
+                workingStr = workingStr.replace(/[·•‧・\-\&\/\+\,\|\;]/g, '|||');
+
+                const tokens = workingStr.split('|||')
                   .map(t => t.trim())
                   .filter(t => t.length > 0);
 
+                console.log(`[Curated Debug] Artist "${s}" -> tokens:`, tokens);
+
                 tokens.forEach(token => {
                   const normToken = normalizeForMatch(token);
-                  if (normToken) artistTokensSet.add(normToken);
+                  if (normToken) {
+                    artistTokensSet.add(normToken);
+                    console.log(`[Curated Debug] Added token: "${normToken}"`);
+                  }
                 });
               };
               const aRelease = rd.basicInfo?.Artists || {};
@@ -577,7 +589,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 const a = t?.sections?.Artists || {};
                 Object.values(a).forEach(processArtistName);
               });
-            } catch(_) {}
+            } catch(e) { console.error('[Curated Debug] Error processing artists:', e); }
+
+            console.log('[Curated Debug] All artist tokens:', Array.from(artistTokensSet));
+            console.log('[Curated Debug] Curated list sample:', curatedList.slice(0, 20));
 
             const pad = (s) => ` ${s} `;
             const paddedAll = pad(allTextNorm);
@@ -599,7 +614,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 // Single-word names: check if it matches any token from artist names
                 // "Wali" matches "Wali · POP ID" (token: "Wali")
                 // "Silva" does NOT match "Marcela Silva" (no separator, full name is "marcela silva")
-                if (artistTokensSet.has(norm)) foundCurated.add(original);
+                const found = artistTokensSet.has(norm);
+                if (found) {
+                  console.log(`[Curated Debug] MATCH! "${original}" (norm: "${norm}") found in tokens`);
+                  foundCurated.add(original);
+                }
               }
             });
             if (foundCurated.size) {
