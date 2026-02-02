@@ -2709,12 +2709,67 @@ function closeModalSafely(modal) {
     try {
       console.log('Highlight request:', payload);
       
-      // NUEVO: Función helper mejorada para encontrar elementos
+      // MEJORADO: Función helper para encontrar el elemento MÁS ESPECÍFICO que contiene el texto
       const findByText = (selectorList, txt) => {
+        if (!txt || !txt.trim()) return null;
+        const searchText = txt.toLowerCase().trim();
+
+        // Función para encontrar el elemento más profundo/específico que contiene el texto
+        const findDeepestMatch = (element) => {
+          if (!element) return null;
+
+          const elementText = (element.textContent || '').toLowerCase();
+          if (!elementText.includes(searchText)) return null;
+
+          // Buscar en hijos directos primero (elementos más específicos)
+          const children = Array.from(element.children);
+          for (const child of children) {
+            const childText = (child.textContent || '').toLowerCase();
+            if (childText.includes(searchText)) {
+              // Recursivamente buscar en el hijo
+              const deeper = findDeepestMatch(child);
+              if (deeper) return deeper;
+            }
+          }
+
+          // Si ningún hijo contiene el texto, este es el elemento más específico
+          // Pero verificar que no sea un contenedor muy grande
+          const isSmallEnough = element.children.length <= 5 &&
+                                element.textContent.length < 500;
+
+          return isSmallEnough ? element : null;
+        };
+
         for (const sel of selectorList) {
           const nodes = Array.from(document.querySelectorAll(sel));
-          const match = nodes.find(n => (n.textContent || '').toLowerCase().includes((txt||'').toLowerCase()));
-          if (match) return match;
+
+          for (const node of nodes) {
+            const nodeText = (node.textContent || '').toLowerCase();
+            if (!nodeText.includes(searchText)) continue;
+
+            // Buscar el elemento más específico dentro de este nodo
+            const specificElement = findDeepestMatch(node);
+            if (specificElement) {
+              console.log(`findByText: Found specific element for "${txt}":`, specificElement.tagName, specificElement.className);
+              return specificElement;
+            }
+
+            // Fallback: buscar elementos leaf que contengan el texto
+            const leafElements = node.querySelectorAll('p, span, h1, h2, h3, h4, h5, h6, label, code, strong, em, a, td, th');
+            for (const leaf of leafElements) {
+              const leafText = (leaf.textContent || '').toLowerCase();
+              if (leafText.includes(searchText) && leaf.children.length <= 2) {
+                console.log(`findByText: Found leaf element for "${txt}":`, leaf.tagName, leaf.className);
+                return leaf;
+              }
+            }
+
+            // Si no encontramos nada más específico, devolver el nodo original
+            // pero solo si no es demasiado grande
+            if (node.textContent.length < 1000) {
+              return node;
+            }
+          }
         }
         return null;
       };
@@ -2822,29 +2877,71 @@ function closeModalSafely(modal) {
         return trackElement;
       };
 
-      const highlight = (el) => {
+      const highlight = (el, searchText = '') => {
         if (!el) return false;
-        
+
         // MEJORADO: Buscar el elemento más específico que contenga el texto
         let targetElement = el;
-        
-        // Si es un contenedor grande, buscar un elemento más específico dentro
-        if (el.classList.contains('row') || el.classList.contains('card') || el.classList.contains('card-body') || el.classList.contains('player')) {
-          // Buscar elementos más específicos como headers, labels, o spans con el texto
-          const specificElements = el.querySelectorAll('h5, h6, p, span, label, .font-extra-bold, .fs-5');
-          for (const specificEl of specificElements) {
-            if (specificEl.textContent && specificEl.textContent.trim().length > 0) {
-              targetElement = specificEl;
-              break;
+        const textToFind = (searchText || t || '').toLowerCase().trim();
+
+        // Función helper para verificar si un elemento es "pequeño" (específico)
+        const isSpecificElement = (elem) => {
+          if (!elem) return false;
+          const tag = elem.tagName?.toLowerCase();
+          // Elementos que son inherentemente específicos
+          if (['input', 'textarea', 'select', 'label', 'code', 'strong', 'em', 'a', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tag)) {
+            return elem.children.length <= 2;
+          }
+          // Para otros elementos, verificar tamaño del contenido
+          return elem.textContent && elem.textContent.length < 200 && elem.children.length <= 3;
+        };
+
+        // Función helper para encontrar el elemento más específico con el texto
+        const findMostSpecific = (container, text) => {
+          if (!container || !text) return container;
+
+          // Buscar elementos leaf que contengan el texto exacto
+          const candidates = container.querySelectorAll('p, span, h5, h6, label, code, strong, em, a, td, input, textarea');
+          let bestMatch = null;
+          let bestMatchLength = Infinity;
+
+          for (const candidate of candidates) {
+            const candidateText = (candidate.value || candidate.textContent || '').toLowerCase();
+            if (candidateText.includes(text)) {
+              // Preferir elementos más pequeños (más específicos)
+              if (candidateText.length < bestMatchLength && isSpecificElement(candidate)) {
+                bestMatch = candidate;
+                bestMatchLength = candidateText.length;
+              }
             }
           }
+
+          return bestMatch || container;
+        };
+
+        // Si es un contenedor grande, buscar elemento más específico
+        const isLargeContainer = el.classList?.contains('row') ||
+                                 el.classList?.contains('card') ||
+                                 el.classList?.contains('card-body') ||
+                                 el.classList?.contains('player') ||
+                                 el.classList?.contains('container') ||
+                                 el.classList?.contains('pt-3') ||
+                                 (el.children && el.children.length > 5) ||
+                                 (el.textContent && el.textContent.length > 500);
+
+        if (isLargeContainer && textToFind) {
+          const specific = findMostSpecific(el, textToFind);
+          if (specific && specific !== el) {
+            console.log(`Highlight: Found more specific element for "${textToFind}":`, specific.tagName, specific.className || '(no class)');
+            targetElement = specific;
+          }
         }
-        
-        // MEJORADO: Si es un input o textarea, usarlo directamente
+
+        // Si es un input o textarea, usarlo directamente
         if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') {
           targetElement = el;
         }
-        
+
         // Scroll suave al elemento
         targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
@@ -2931,18 +3028,18 @@ function closeModalSafely(modal) {
           '[data-track-info] .row.py-2',
           'main'
         ], t);
-        if (highlight(el)) return;
+        if (highlight(el, t)) return;
       }
-      
+
       if (raw.includes('curated') || flag.includes('curated')) {
         const el = findByText([
           'div.row.row-cols-3 .card-body',
           '[data-track-info] .row.py-2',
           'main'
         ], t);
-        if (highlight(el)) return;
+        if (highlight(el, t)) return;
       }
-      
+
       // 4) Terms sospechosos
       if (flag.includes('terms') || raw.includes('suspicious term')) {
         const el = findByText([
@@ -2950,7 +3047,7 @@ function closeModalSafely(modal) {
           'div.row.row-cols-3 .card-body',
           'main'
         ], t);
-        if (highlight(el)) return;
+        if (highlight(el, t)) return;
       }
       
       // 5) Track duration específico
@@ -3011,14 +3108,14 @@ function closeModalSafely(modal) {
             '[data-track-info] .row.py-2',
             'div.row.row-cols-3 .card-body',
           ], 'version');
-          if (highlight(el)) return;
+          if (highlight(el, 'version')) return;
         }
       }
 
       // Fallback: buscar coincidencia general en toda la página
       console.log('Using fallback highlighting for:', t);
       const fallback = findByText(['main', 'body'], t);
-      highlight(fallback);
+      highlight(fallback, t);
       
     } catch (error) {
       console.error('Error in highlight request:', error);
