@@ -2421,6 +2421,27 @@ function closeModalSafely(modal) {
         }, '*');
       }
     }
+
+    // Handle backoffice fetch request from background (content script has cookie access)
+    if (request.action === 'fetchBackofficeFromContent' && request.url) {
+      console.log('[Content] Fetching backoffice URL:', request.url);
+      (async () => {
+        try {
+          const resp = await fetch(request.url, {
+            method: 'GET',
+            credentials: 'include',
+            headers: { 'Accept': 'text/html' }
+          });
+          const html = await resp.text();
+          console.log('[Content] Backoffice fetch response length:', html.length);
+          sendResponse({ ok: resp.ok, status: resp.status, html });
+        } catch (e) {
+          console.error('[Content] Backoffice fetch error:', e);
+          sendResponse({ ok: false, error: String(e) });
+        }
+      })();
+      return true; // Will respond asynchronously
+    }
   });
 
   // ---- QCWT: provide lightweight DOM snapshot for approve/reject logging ----

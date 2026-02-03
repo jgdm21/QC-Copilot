@@ -346,56 +346,109 @@ function parseBackofficeHTML(html) {
   return releases;
 }
 
+// Helper to fetch via content script (has cookie access)
+async function fetchViaContentScript(tabId, url) {
+  return new Promise((resolve) => {
+    try {
+      chrome.tabs.sendMessage(tabId, { action: 'fetchBackofficeFromContent', url }, (response) => {
+        if (chrome.runtime.lastError) {
+          warn('[Backoffice Fetch] Content script error:', chrome.runtime.lastError.message);
+          resolve({ ok: false, error: chrome.runtime.lastError.message });
+        } else {
+          resolve(response || { ok: false, error: 'No response' });
+        }
+      });
+    } catch (e) {
+      warn('[Backoffice Fetch] Content script fetch error:', e);
+      resolve({ ok: false, error: String(e) });
+    }
+  });
+}
+
 // Fetch all pages of backoffice search results
-async function fetchBackofficeHistory(searchField, searchValue, maxPages = 10) {
+async function fetchBackofficeHistory(searchField, searchValue, maxPages = 10, tabId = null) {
   const allReleases = [];
   let page = 1;
   let hasMore = true;
 
+  log('[Backoffice Fetch] Starting fetch for:', { searchField, searchValue, tabId });
+
   while (hasMore && page <= maxPages) {
     try {
       const url = `${BACKOFFICE_BASE_URL}?state=all&searchField=${encodeURIComponent(searchField)}&searchValue=${encodeURIComponent(searchValue)}&page=${page}`;
-      log('Fetching backoffice page:', { page, url });
+      log('[Backoffice Fetch] Fetching page:', { page, url });
 
-      const resp = await fetch(url, {
-        method: 'GET',
-        credentials: 'include',
-        headers: {
-          'Accept': 'text/html'
+      let html = '';
+      let fetchOk = false;
+
+      // Try direct fetch first
+      try {
+        const resp = await fetch(url, {
+          method: 'GET',
+          credentials: 'include',
+          headers: { 'Accept': 'text/html' }
+        });
+        log('[Backoffice Fetch] Direct fetch response status:', resp.status);
+
+        if (resp.ok) {
+          html = await resp.text();
+          fetchOk = true;
+          log('[Backoffice Fetch] Direct fetch success, HTML length:', html.length);
         }
-      });
+      } catch (e) {
+        log('[Backoffice Fetch] Direct fetch failed:', e.message);
+      }
 
-      if (!resp.ok) {
-        warn('Backoffice fetch failed:', resp.status);
+      // If direct fetch failed and we have a tabId, try via content script
+      if (!fetchOk && tabId) {
+        log('[Backoffice Fetch] Trying via content script...');
+        const contentResult = await fetchViaContentScript(tabId, url);
+        if (contentResult.ok && contentResult.html) {
+          html = contentResult.html;
+          fetchOk = true;
+          log('[Backoffice Fetch] Content script fetch success, HTML length:', html.length);
+        } else {
+          warn('[Backoffice Fetch] Content script fetch failed:', contentResult.error);
+        }
+      }
+
+      if (!fetchOk || !html) {
+        warn('[Backoffice Fetch] All fetch methods failed');
         break;
       }
 
-      const html = await resp.text();
+      log('[Backoffice Fetch] HTML contains revisionsTable?', html.includes('revisionsTable'));
+      log('[Backoffice Fetch] HTML contains data-id?', html.includes('data-id'));
+
       const releases = parseBackofficeHTML(html);
+      log('[Backoffice Fetch] Parsed releases count:', releases.length);
 
       if (releases.length === 0) {
         hasMore = false;
+        log('[Backoffice Fetch] No releases found on page', page);
       } else {
+        log('[Backoffice Fetch] First release parsed:', releases[0]);
         allReleases.push(...releases);
         page++;
 
         // Check if there's a next page link
         if (!html.includes(`page=${page}`) && !html.includes(`page=${page + 1}`)) {
           hasMore = false;
+          log('[Backoffice Fetch] No more pages detected');
         }
       }
     } catch (e) {
-      warn('Error fetching backoffice page:', e);
+      warn('[Backoffice Fetch] Error fetching page:', e);
       break;
     }
   }
 
-  log('Backoffice search complete:', { searchField, searchValue, total: allReleases.length });
+  log('[Backoffice Fetch] Complete:', { searchField, searchValue, total: allReleases.length });
   return allReleases;
 }
 
 // Search backoffice for user email history with caching
-async function getBackofficeHistoryCached(email, currentReleaseId) {
+async function getBackofficeHistoryCached(email, currentReleaseId, tabId = null) {
   const key = `QC_BACKOFFICE_${normalizeStr(email)}`;
   const now = Date.now();
 
@@ -411,7 +464,7 @@ async function getBackofficeHistoryCached(email, currentReleaseId) {
   }
 
   try {
-    const releases = await fetchBackofficeHistory('user_email', email);
+    const releases = await fetchBackofficeHistory('user_email', email, 10, tabId);
     await setLocal({ [key]: { data: releases, expiresAt: now + QC_BACKOFFICE_TTL_MS } });
     return processBackofficeResults(releases, currentReleaseId);
   } catch (e) {
@@ -421,7 +474,7 @@ async function getBackofficeHistoryCached(email, currentReleaseId) {
 }
 
 // Search backoffice for artist name by same user email
-async function searchCuratedArtistInBackoffice(artistName, userEmail) {
+async function searchCuratedArtistInBackoffice(artistName, userEmail, tabId = null) {
   // First get all releases by this user
   const key = `QC_BACKOFFICE_${normalizeStr(userEmail)}`;
   const now = Date.now();
@@ -433,7 +486,7 @@ async function searchCuratedArtistInBackoffice(artistName, userEmail) {
     if (entry && entry.expiresAt && entry.expiresAt > now && Array.isArray(entry.data)) {
       allReleases = entry.data;
     } else {
-      allReleases = await fetchBackofficeHistory('user_email', userEmail);
+      allReleases = await fetchBackofficeHistory('user_email', userEmail, 10, tabId);
       await setLocal({ [key]: { data: allReleases, expiresAt: now + QC_BACKOFFICE_TTL_MS } });
     }
   } catch (e) {
@@ -1014,20 +1067,40 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
             // Follow-up: Backoffice history lookup (non-blocking)
             try {
-              const requesterEmail = String(rd.cards?.User?.Email || '').trim();
+              const rawEmail = rd.cards?.User?.Email || '';
+              // Extract email from text that might contain extra content
+              const emailMatch = String(rawEmail).match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
+              const requesterEmail = emailMatch ? emailMatch[0].toLowerCase().trim() : '';
               const currentReleaseId = rd.releaseId || rd.basicInfo?.['Release ID'] || '';
               const targetTabId = sender && sender.tab && sender.tab.id;
 
+              log('[Backoffice] Raw email from releaseData:', rawEmail);
+              log('[Backoffice] Extracted email:', requesterEmail);
+              log('[Backoffice] Current release ID:', currentReleaseId);
+              log('[Backoffice] Target tab ID:', targetTabId);
+
               if (requesterEmail && targetTabId) {
-                log('Starting backoffice history lookup for:', requesterEmail);
-                const historyResult = await getBackofficeHistoryCached(requesterEmail, currentReleaseId);
+                // Send initial "searching" status
+                try {
+                  chrome.tabs.sendMessage(targetTabId, {
+                    action: 'updateBackofficeHistory',
+                    backofficeHistory: { status: 'searching' },
+                    curatedArtistHistory: []
+                  });
+                } catch (e) {
+                  log('[Backoffice] Error sending searching status:', e);
+                }
+
+                log('[Backoffice] Starting history lookup for:', requesterEmail);
+                const historyResult = await getBackofficeHistoryCached(requesterEmail, currentReleaseId, targetTabId);
+                log('[Backoffice] History result:', JSON.stringify(historyResult).substring(0, 500));
 
                 // Also search for curated artists in backoffice if we found any
                 let curatedArtistHistory = [];
                 if (flags.curatedArtists && flags.curatedArtists.length > 0) {
                   log('Searching curated artists in backoffice:', flags.curatedArtists);
                   for (const artist of flags.curatedArtists) {
-                    const artistResult = await searchCuratedArtistInBackoffice(artist, requesterEmail);
+                    const artistResult = await searchCuratedArtistInBackoffice(artist, requesterEmail, targetTabId);
                     if (artistResult.total > 0) {
                       curatedArtistHistory.push(artistResult);
                     }

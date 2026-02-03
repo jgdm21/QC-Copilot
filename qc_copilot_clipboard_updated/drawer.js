@@ -1944,12 +1944,16 @@ function renderFullUI() {
       const curatedArtistHistory = currentState.curatedArtistHistory || [];
 
       if (backofficeHistory) {
+        console.log('[Drawer] Backoffice history data:', backofficeHistory);
         if (backofficeHistory.status === 'searching') {
           summaryItems.push({
             msg: 'Backoffice history: searching…',
             color: 'yellow',
             rawMsgKey: 'user_history_summary'
           });
+        } else if (backofficeHistory.status === 'error') {
+          console.log('[Drawer] Backoffice history error');
+          // Optionally show error state
         } else if (backofficeHistory.summary) {
           const summary = backofficeHistory.summary;
 
