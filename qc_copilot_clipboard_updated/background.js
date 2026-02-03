@@ -536,6 +536,7 @@ async function fetchReleaseRejectReasons(releaseUuid, tabId = null) {
     if (resp.ok) {
       html = await resp.text();
       fetchOk = true;
+      log('[Backoffice] Direct fetch for reject reasons success, length:', html.length);
     }
   } catch (e) {
     log('[Backoffice] Direct fetch for reject reasons failed:', e.message);
@@ -543,39 +544,67 @@ async function fetchReleaseRejectReasons(releaseUuid, tabId = null) {
 
   // Fallback to content script
   if (!fetchOk && tabId) {
+    log('[Backoffice] Trying content script for reject reasons...');
     const contentResult = await fetchViaContentScript(tabId, url);
     if (contentResult.ok && contentResult.html) {
       html = contentResult.html;
       fetchOk = true;
+      log('[Backoffice] Content script fetch for reject reasons success, length:', html.length);
+    } else {
+      log('[Backoffice] Content script fetch for reject reasons failed:', contentResult.error);
     }
   }
 
   if (!fetchOk || !html) {
+    log('[Backoffice] Could not fetch reject reasons page');
     return { reasons: [], categories: [] };
   }
 
   // Parse reject reasons from HTML
-  // Format: <h4 class="fs-5 text">Category</h4> <ul><li>reason1</li><li>reason2</li></ul>
+  // HTML format from user:
+  // <h1 class="fs-5 mb-4"><strong>Reject Reasons</strong></h1>
+  // <h4 class="fs-5 text">Category</h4>
+  // <ul><li class="fs-5 text">reason text</li></ul>
   const reasons = [];
   const categories = [];
 
   try {
-    // Find the Reject Reasons section
-    const rejectSectionMatch = html.match(/<h1[^>]*>.*?Reject\s*Reasons.*?<\/h1>([\s\S]*?)(?=<div class="row"|<\/div>\s*<\/div>\s*<\/div>|$)/i);
+    log('[Backoffice] Looking for Reject Reasons in HTML...');
+    log('[Backoffice] HTML contains "Reject Reasons"?', html.includes('Reject Reasons'));
+    log('[Backoffice] HTML contains "Reject"?', html.includes('Reject'));
 
-    if (rejectSectionMatch) {
-      const sectionContent = rejectSectionMatch[1];
+    // Method 1: Look for the Reject Reasons section with h1 > strong
+    let sectionContent = '';
 
+    // Try to find section starting with "Reject Reasons" header
+    const rejectHeaderMatch = html.match(/<h1[^>]*>[\s\S]*?<strong>[\s]*Reject[\s]*Reasons[\s]*<\/strong>[\s\S]*?<\/h1>([\s\S]*?)(?=<div class="card"|<form|<\/main>|$)/i);
+
+    if (rejectHeaderMatch) {
+      sectionContent = rejectHeaderMatch[1];
+      log('[Backoffice] Found reject section with h1>strong pattern, length:', sectionContent.length);
+    } else {
+      // Fallback: try simpler pattern
+      const simpleMatch = html.match(/Reject\s*Reasons[\s\S]*?(<h4[\s\S]*?<\/ul>)/gi);
+      if (simpleMatch && simpleMatch.length > 0) {
+        sectionContent = simpleMatch.join(' ');
+        log('[Backoffice] Found reject section with simple pattern');
+      }
+    }
+
+    if (sectionContent) {
       // Extract categories (h4) and their reasons (li)
-      const categoryRegex = /<h4[^>]*class="[^"]*text[^"]*"[^>]*>([^<]+)<\/h4>\s*<ul>([\s\S]*?)<\/ul>/gi;
+      // Pattern: <h4 class="fs-5 text">Category</h4> followed by <ul>...</ul>
+      const categoryRegex = /<h4[^>]*>([^<]+)<\/h4>\s*<ul>([\s\S]*?)<\/ul>/gi;
       let catMatch;
 
       while ((catMatch = categoryRegex.exec(sectionContent)) !== null) {
         const category = catMatch[1].trim();
         const listContent = catMatch[2];
+        log('[Backoffice] Found category:', category);
 
-        // Extract individual reasons
-        const liRegex = /<li[^>]*>([^<]+)<\/li>/gi;
+        // Extract individual reasons from li elements
+        // Pattern: <li class="fs-5 text">reason text</li>
+        const liRegex = /<li[^>]*class="[^"]*text[^"]*"[^>]*>([^<]+)<\/li>/gi;
         let liMatch;
 
         while ((liMatch = liRegex.exec(listContent)) !== null) {
@@ -583,6 +612,40 @@ async function fetchReleaseRejectReasons(releaseUuid, tabId = null) {
           if (reason) {
             reasons.push(reason);
             categories.push(category);
+            log('[Backoffice] Found reason:', reason);
+          }
+        }
+
+        // Fallback: try without class restriction
+        if (reasons.length === 0) {
+          const liRegexSimple = /<li[^>]*>([^<]+)<\/li>/gi;
+          while ((liMatch = liRegexSimple.exec(listContent)) !== null) {
+            const reason = liMatch[1].trim();
+            if (reason && reason.length > 5) { // Filter out empty or very short
+              reasons.push(reason);
+              categories.push(category);
+              log('[Backoffice] Found reason (simple):', reason);
+            }
+          }
+        }
+      }
+    }
+
+    // If still no results, try a more aggressive approach
+    if (reasons.length === 0) {
+      log('[Backoffice] Trying aggressive parsing...');
+      // Look for any li elements after "Reject Reasons"
+      const afterRejectMatch = html.match(/Reject\s*Reasons[\s\S]*?<ul>([\s\S]*?)<\/ul>/i);
+      if (afterRejectMatch) {
+        const listContent = afterRejectMatch[1];
+        const liRegex = /<li[^>]*>([^<]+)<\/li>/gi;
+        let liMatch;
+        while ((liMatch = liRegex.exec(listContent)) !== null) {
+          const reason = liMatch[1].trim();
+          if (reason && reason.length > 5) {
+            reasons.push(reason);
+            categories.push('Reject Reason');
+            log('[Backoffice] Found reason (aggressive):', reason);
           }
         }
       }
@@ -591,7 +654,7 @@ async function fetchReleaseRejectReasons(releaseUuid, tabId = null) {
     warn('[Backoffice] Error parsing reject reasons:', e);
   }
 
-  log('[Backoffice] Parsed reject reasons:', { reasons, categories });
+  log('[Backoffice] Final parsed reject reasons:', { reasons, categories });
   return { reasons, categories };
 }
 
