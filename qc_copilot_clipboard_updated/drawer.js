@@ -1950,12 +1950,22 @@ function renderFullUI() {
         // Alert for rejected releases - this is important enough to show in QC Checks
         if (summary.rejected && summary.rejected.length > 0) {
           const rejectedCount = summary.rejected.length;
-          const rejectedTitles = summary.rejected.slice(0, 5).map(r => `"${r.title}" (${r.status})`);
+          // Build detailed rejected info with reasons
+          const rejectedDetails = summary.rejected.slice(0, 5).map(r => {
+            let detail = `"${r.title}"`;
+            if (r.rejectReasons && r.rejectReasons.length > 0) {
+              // Show first 2 reasons max to keep it concise
+              const reasonsPreview = r.rejectReasons.slice(0, 2).join('; ');
+              const moreReasons = r.rejectReasons.length > 2 ? ` (+${r.rejectReasons.length - 2} more)` : '';
+              detail += `: ${reasonsPreview}${moreReasons}`;
+            }
+            return detail;
+          });
           summaryItems.push({
             msg: `User has ${rejectedCount} rejected release${rejectedCount > 1 ? 's' : ''}`,
             color: 'red',
             rawMsgKey: 'user_has_rejected_releases',
-            flagValue: rejectedTitles,
+            flagValue: rejectedDetails,
             dynamicParams: { count: rejectedCount }
           });
         }

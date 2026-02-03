@@ -518,6 +518,83 @@ async function searchCuratedArtistInBackoffice(artistName, userEmail, tabId = nu
   };
 }
 
+// Fetch reject reasons from a release detail page
+async function fetchReleaseRejectReasons(releaseUuid, tabId = null) {
+  const url = `https://backoffice.sonosuite.com/quality-control/revisions/${releaseUuid}`;
+  log('[Backoffice] Fetching reject reasons for:', releaseUuid);
+
+  let html = '';
+  let fetchOk = false;
+
+  // Try direct fetch first
+  try {
+    const resp = await fetch(url, {
+      method: 'GET',
+      credentials: 'include',
+      headers: { 'Accept': 'text/html' }
+    });
+    if (resp.ok) {
+      html = await resp.text();
+      fetchOk = true;
+    }
+  } catch (e) {
+    log('[Backoffice] Direct fetch for reject reasons failed:', e.message);
+  }
+
+  // Fallback to content script
+  if (!fetchOk && tabId) {
+    const contentResult = await fetchViaContentScript(tabId, url);
+    if (contentResult.ok && contentResult.html) {
+      html = contentResult.html;
+      fetchOk = true;
+    }
+  }
+
+  if (!fetchOk || !html) {
+    return { reasons: [], categories: [] };
+  }
+
+  // Parse reject reasons from HTML
+  // Format: <h4 class="fs-5 text">Category</h4> <ul><li>reason1</li><li>reason2</li></ul>
+  const reasons = [];
+  const categories = [];
+
+  try {
+    // Find the Reject Reasons section
+    const rejectSectionMatch = html.match(/<h1[^>]*>.*?Reject\s*Reasons.*?<\/h1>([\s\S]*?)(?=<div class="row"|<\/div>\s*<\/div>\s*<\/div>|$)/i);
+
+    if (rejectSectionMatch) {
+      const sectionContent = rejectSectionMatch[1];
+
+      // Extract categories (h4) and their reasons (li)
+      const categoryRegex = /<h4[^>]*class="[^"]*text[^"]*"[^>]*>([^<]+)<\/h4>\s*<ul>([\s\S]*?)<\/ul>/gi;
+      let catMatch;
+
+      while ((catMatch = categoryRegex.exec(sectionContent)) !== null) {
+        const category = catMatch[1].trim();
+        const listContent = catMatch[2];
+
+        // Extract individual reasons
+        const liRegex = /<li[^>]*>([^<]+)<\/li>/gi;
+        let liMatch;
+
+        while ((liMatch = liRegex.exec(listContent)) !== null) {
+          const reason = liMatch[1].trim();
+          if (reason) {
+            reasons.push(reason);
+            categories.push(category);
+          }
+        }
+      }
+    }
+  } catch (e) {
+    warn('[Backoffice] Error parsing reject reasons:', e);
+  }
+
+  log('[Backoffice] Parsed reject reasons:', { reasons, categories });
+  return { reasons, categories };
+}
+
 // Process backoffice results and generate summary
 function processBackofficeResults(releases, currentReleaseId) {
   const summary = {
@@ -559,6 +636,38 @@ function processBackofficeResults(releases, currentReleaseId) {
     releases,
     summary
   };
+}
+
+// Enrich rejected releases with their reject reasons (fetches detail pages)
+async function enrichRejectedReleasesWithReasons(summary, tabId = null, maxToFetch = 5) {
+  if (!summary.rejected || summary.rejected.length === 0) {
+    return summary;
+  }
+
+  log('[Backoffice] Enriching rejected releases with reasons, count:', summary.rejected.length);
+
+  // Only fetch details for the first N rejected releases to avoid too many requests
+  const toFetch = summary.rejected.slice(0, maxToFetch);
+
+  for (const release of toFetch) {
+    if (release.id) {
+      try {
+        const { reasons, categories } = await fetchReleaseRejectReasons(release.id, tabId);
+        release.rejectReasons = reasons;
+        release.rejectCategories = categories;
+
+        // Create a formatted string for display
+        if (reasons.length > 0) {
+          release.rejectReasonsFormatted = reasons.join('; ');
+        }
+      } catch (e) {
+        warn('[Backoffice] Error fetching reject reasons for release:', release.id, e);
+      }
+    }
+  }
+
+  log('[Backoffice] Enriched rejected releases:', summary.rejected.slice(0, maxToFetch));
+  return summary;
 }
 
 async function getZendeskInfoCached(email) {
@@ -1094,6 +1203,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 log('[Backoffice] Starting history lookup for:', requesterEmail);
                 const historyResult = await getBackofficeHistoryCached(requesterEmail, currentReleaseId, targetTabId);
                 log('[Backoffice] History result:', JSON.stringify(historyResult).substring(0, 500));
+
+                // Enrich rejected releases with their reject reasons (fetch detail pages)
+                if (historyResult.summary && historyResult.summary.rejected && historyResult.summary.rejected.length > 0) {
+                  log('[Backoffice] Enriching rejected releases with reasons...');
+                  await enrichRejectedReleasesWithReasons(historyResult.summary, targetTabId, 5);
+                  log('[Backoffice] Enrichment complete');
+                }
 
                 // Also search for curated artists in backoffice if we found any
                 let curatedArtistHistory = [];
