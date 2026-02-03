@@ -410,13 +410,15 @@ body.qc-font-xl { --qc-font-size-base: 15px; }
 }
 
 /* Legacy grid support (for backward compatibility) */
+/* NOTE: These styles should NOT apply to table rows */
 .qc-alerts-grid {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.qc-grid-item {
+/* Only apply flex to actual grid items, NOT table rows */
+.qc-alerts-grid > .qc-grid-item {
   display: flex;
   align-items: flex-start;
   gap: 8px;
@@ -424,8 +426,13 @@ body.qc-font-xl { --qc-font-size-base: 15px; }
   border-bottom: 1px solid var(--qc-border-color);
 }
 
-.qc-grid-item:last-child {
+.qc-alerts-grid > .qc-grid-item:last-child {
   border-bottom: none;
+}
+
+/* Ensure table rows display correctly */
+.qc-alerts-table tbody tr.qc-grid-item {
+  display: table-row;
 }
 
 .qc-alert-message {

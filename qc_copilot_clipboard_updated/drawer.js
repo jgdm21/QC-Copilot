@@ -2571,11 +2571,6 @@ function renderFullUI() {
         div.innerHTML += tableHTML;
       }
 
-      // LEGACY COMPATIBILITY: Keep qc-grid-item references working
-      div.querySelectorAll('.qc-alerts-table tbody tr').forEach(row => {
-        row.classList.add('qc-grid-item');
-      });
-
       results.prepend(div);
 
   // Añadir botones DuckDuckGo/YouTube en el resumen (NEW TABLE FORMAT)
