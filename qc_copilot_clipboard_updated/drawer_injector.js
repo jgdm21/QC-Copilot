@@ -967,30 +967,19 @@ function injectDrawer() {
   function applySidebarStyles() {
     Object.assign(sidebar.style, {
       position: 'fixed', top: '0', height: '100vh',
-      background: '#fff', boxShadow: '-3px 0 12px #0002',
+      background: '#fff', boxShadow: sidebarPosition === 'right' ? '-3px 0 12px rgba(0,0,0,0.1)' : '3px 0 12px rgba(0,0,0,0.1)',
       fontFamily: 'sans-serif', fontSize: '14px', color: '#111',
       display: 'flex', flexDirection: 'column', transition: 'width .25s, left .25s, right .25s',
       zIndex: '100000',
       width: `${minimized ? minWidth : (parseInt(localStorage.getItem('qcSidebarWidth'), 10) || width)}px`,
       left: sidebarPosition === 'left' ? '0' : 'auto',
       right: sidebarPosition === 'right' ? '0' : 'auto',
-      borderLeft: sidebarPosition === 'right' ? '2px solid #222' : 'none',
-      borderRight: sidebarPosition === 'left' ? '2px solid #222' : 'none'
+      borderLeft: sidebarPosition === 'right' ? '1px solid #e2e8f0' : 'none',
+      borderRight: sidebarPosition === 'left' ? '1px solid #e2e8f0' : 'none'
     });
 
-    // Adjust body margin based on position
-    if (minimized) {
-      document.body.style.marginRight = '';
-      document.body.style.marginLeft = '';
-    } else {
-      if (sidebarPosition === 'right') {
-        document.body.style.marginRight = `${sidebar.offsetWidth}px`;
-        document.body.style.marginLeft = '';
-      } else {
-        document.body.style.marginLeft = `${sidebar.offsetWidth}px`;
-        document.body.style.marginRight = '';
-      }
-    }
+    // NOTE: We no longer modify body margins - the sidebar floats over the content
+    // This prevents layout conflicts with the backoffice menu
   }
 
   function setMinimized(min) {
@@ -1000,21 +989,12 @@ function injectDrawer() {
       Object.assign(sidebar.style, { width: `${minWidth}px`, background: qcColor });
       mainContent.style.display = 'none';
       miniBar.style.display = 'flex';
-      document.body.style.marginRight = '';
-      document.body.style.marginLeft = '';
     } else {
       const saved = parseInt(localStorage.getItem('qcSidebarWidth'), 10) || width;
       const w = Math.max(saved, minWidth);
       Object.assign(sidebar.style, { width: `${w}px`, background: '#fff' });
       mainContent.style.display = 'flex';
       miniBar.style.display = 'none';
-      if (sidebarPosition === 'right') {
-        document.body.style.marginRight = `${w}px`;
-        document.body.style.marginLeft = '';
-      } else {
-        document.body.style.marginLeft = `${w}px`;
-        document.body.style.marginRight = '';
-      }
     }
     applySidebarStyles();
   }

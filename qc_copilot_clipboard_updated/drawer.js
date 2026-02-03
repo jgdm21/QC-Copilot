@@ -145,8 +145,8 @@ window.qcExportData = () => QC_COMPARISON_DATA.exportData();
 // ====================================
 // FONT SIZE CONTROL SYSTEM
 // ====================================
-const QC_FONT_SIZES = ['xs', 'sm', 'md', 'lg', 'xl'];
-const QC_FONT_LABELS = { 'xs': 'XS', 'sm': 'S', 'md': 'M', 'lg': 'L', 'xl': 'XL' };
+const QC_FONT_SIZES = ['xs', 'sm', 'md', 'lg', 'xl', '2xl', '3xl'];
+const QC_FONT_LABELS = { 'xs': 'XS', 'sm': 'S', 'md': 'M', 'lg': 'L', 'xl': 'XL', '2xl': '2X', '3xl': '3X' };
 const QC_FONT_STORAGE_KEY = 'qcFontSize';
 
 function initFontSizeControls() {
@@ -2423,9 +2423,9 @@ function renderFullUI() {
         div.innerHTML += `<table class="qc-alerts-table">
           <thead>
             <tr>
-              <th>Alerta</th>
-              <th>Dato</th>
-              <th>Detalle</th>
+              <th>Flag</th>
+              <th>Item</th>
+              <th>Detail</th>
             </tr>
           </thead>
           <tbody>
@@ -2446,15 +2446,15 @@ function renderFullUI() {
           tableHTML += `<table class="qc-alerts-table">
             <thead>
               <tr>
-                <th>Alerta</th>
-                <th>Dato</th>
-                <th>Detalle</th>
+                <th>Flag</th>
+                <th>Item</th>
+                <th>Detail</th>
               </tr>
             </thead>
             <tbody>`;
 
           alerts.forEach(it => {
-            // Get flag items for the "Dato" column
+            // Get flag items for the "Item" column
             let flagItems = [];
             if (it.flagValue) {
               flagItems = it.flagValue;
@@ -2483,7 +2483,7 @@ function renderFullUI() {
               }
             }
 
-            // Build "Dato" column content
+            // Build "Item" column content
             let dataContent = '';
             if (flagItems && flagItems.length > 0) {
               if (it.detailedAudioResults) {
@@ -2505,50 +2505,27 @@ function renderFullUI() {
                 ).join('<br>');
               }
             } else {
-              dataContent = '<span style="color:var(--qc-text-muted);">-</span>';
+              dataContent = '';
             }
 
-            // Build "Detalle" column content
+            // Build "Detail" column content - ONLY show actual details, not descriptions
             let detailContent = '';
             if (it.detailedAudioResults && flagItems && flagItems.length > 0) {
               // Show track details for audio results
-              detailContent = flagItems.map(trackResult => {
+              const details = flagItems.map(trackResult => {
                 const trackDetails = trackResult.alerts || trackResult.details || [];
-                return trackDetails.length > 0
-                  ? trackDetails.map(d => escapeHTML(d)).join(', ')
-                  : '<span style="color:var(--qc-text-muted);">-</span>';
-              }).join('<br>');
+                return trackDetails.length > 0 ? trackDetails.map(d => escapeHTML(d)).join(', ') : '';
+              }).filter(d => d).join('<br>');
+              detailContent = details || '';
             } else if ((it.flagType === 'invalidCreditComposer' || it.flagType === 'invalidCreditLyricist') && flagItems && flagItems.length > 0) {
               // Show contexts for credit validation
-              detailContent = flagItems.map(entry => {
+              const details = flagItems.map(entry => {
                 const contexts = Array.isArray(entry?.contexts) ? entry.contexts : [];
-                return contexts.length > 0
-                  ? contexts.map(ctx => escapeHTML(ctx)).join(', ')
-                  : '<span style="color:var(--qc-text-muted);">-</span>';
-              }).join('<br>');
-            } else {
-              // Use validation description as detail
-              const validationInfo = validationDetails[it.rawMsgKey];
-              if (validationInfo) {
-                let desc = validationInfo.description;
-                if (typeof desc === 'function') {
-                  // Try to call with dynamic params
-                  const params = it.dynamicParams || {};
-                  try {
-                    desc = desc(params.trackTitle || params.title || '', params.count || flagItems?.length || 0, params);
-                  } catch(e) {
-                    desc = 'See help for details';
-                  }
-                }
-                // Truncate long descriptions
-                if (desc && desc.length > 80) {
-                  desc = desc.substring(0, 77) + '...';
-                }
-                detailContent = `<span class="qc-alert-detail">${escapeHTML(desc || '-')}</span>`;
-              } else {
-                detailContent = '<span style="color:var(--qc-text-muted);">-</span>';
-              }
+                return contexts.length > 0 ? contexts.map(ctx => escapeHTML(ctx)).join(', ') : '';
+              }).filter(d => d).join('<br>');
+              detailContent = details || '';
             }
+            // NOTE: We no longer show validation descriptions in the Detail column
 
             tableHTML += `<tr data-rawkey="${escapeHTML(it.rawMsgKey)}" data-flag="${escapeHTML(it.flagType || '')}">
               <td>
