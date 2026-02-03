@@ -1943,46 +1943,21 @@ function renderFullUI() {
       const backofficeHistory = currentState.backofficeHistory;
       const curatedArtistHistory = currentState.curatedArtistHistory || [];
 
-      if (backofficeHistory) {
-        console.log('[Drawer] Backoffice history data:', backofficeHistory);
-        if (backofficeHistory.status === 'searching') {
+      // Note: backofficeHistory is now rendered as a separate visual section, not in summaryItems
+      // We only add a red alert if there are rejected releases (this goes in the QC Checks)
+      if (backofficeHistory && backofficeHistory.summary) {
+        const summary = backofficeHistory.summary;
+        // Alert for rejected releases - this is important enough to show in QC Checks
+        if (summary.rejected && summary.rejected.length > 0) {
+          const rejectedCount = summary.rejected.length;
+          const rejectedTitles = summary.rejected.slice(0, 5).map(r => `"${r.title}" (${r.status})`);
           summaryItems.push({
-            msg: 'Backoffice history: searching…',
-            color: 'yellow',
-            rawMsgKey: 'user_history_summary'
+            msg: `User has ${rejectedCount} rejected release${rejectedCount > 1 ? 's' : ''}`,
+            color: 'red',
+            rawMsgKey: 'user_has_rejected_releases',
+            flagValue: rejectedTitles,
+            dynamicParams: { count: rejectedCount }
           });
-        } else if (backofficeHistory.status === 'error') {
-          console.log('[Drawer] Backoffice history error');
-          // Optionally show error state
-        } else if (backofficeHistory.summary) {
-          const summary = backofficeHistory.summary;
-
-          // Alert for rejected releases
-          if (summary.rejected && summary.rejected.length > 0) {
-            const rejectedCount = summary.rejected.length;
-            const rejectedTitles = summary.rejected.slice(0, 5).map(r => `"${r.title}" (${r.status})`);
-            summaryItems.push({
-              msg: `User has ${rejectedCount} rejected release${rejectedCount > 1 ? 's' : ''}`,
-              color: 'red',
-              rawMsgKey: 'user_has_rejected_releases',
-              flagValue: rejectedTitles,
-              dynamicParams: { count: rejectedCount }
-            });
-          }
-
-          // General user history summary (if total releases > 0 and not all rejected)
-          if (summary.total > 0) {
-            const statusBreakdown = Object.entries(summary.byStatus)
-              .map(([status, count]) => `${count} ${status.replace(/_/g, ' ')}`)
-              .join(', ');
-            summaryItems.push({
-              msg: `User history: ${summary.total} release${summary.total > 1 ? 's' : ''} in backoffice`,
-              color: 'yellow',
-              rawMsgKey: 'user_history_summary',
-              flagValue: [statusBreakdown],
-              dynamicParams: { summary }
-            });
-          }
         }
       }
 
@@ -2276,9 +2251,91 @@ function renderFullUI() {
       const oldSummary2 = document.getElementById('qc-summary');
       if (oldSummary2) oldSummary2.remove();
 
-  const div = document.createElement('div'); 
+      // Remove old user history section if exists
+      const oldUserHistory = document.getElementById('qc-user-history');
+      if (oldUserHistory) oldUserHistory.remove();
+
+      // ===== USER HISTORY SECTION (visual bars) =====
+      let userHistoryHTML = '';
+      if (backofficeHistory) {
+        if (backofficeHistory.status === 'searching') {
+          userHistoryHTML = `
+            <div id="qc-user-history" class="qc-user-history-section">
+              <div class="qc-user-history-header">
+                <span>📊 User History</span>
+              </div>
+              <div class="qc-user-history-loading">
+                <span class="qc-spinner"></span> Searching backoffice...
+              </div>
+            </div>`;
+        } else if (backofficeHistory.summary && backofficeHistory.summary.total > 0) {
+          const summary = backofficeHistory.summary;
+          const total = summary.total;
+
+          // Define status colors and order (most important first)
+          const statusConfig = {
+            'rejected': { color: '#ef4444', icon: '🔴', priority: 1 },
+            'disapproved': { color: '#ef4444', icon: '🔴', priority: 2 },
+            'client action required': { color: '#f59e0b', icon: '🟠', priority: 3 },
+            'client documentation required': { color: '#f59e0b', icon: '🟠', priority: 4 },
+            'agent action required': { color: '#3b82f6', icon: '🔵', priority: 5 },
+            'under review': { color: '#8b5cf6', icon: '🟣', priority: 6 },
+            'pending': { color: '#6b7280', icon: '⚪', priority: 7 },
+            'approved': { color: '#22c55e', icon: '🟢', priority: 8 }
+          };
+
+          // Sort statuses by priority and count
+          const sortedStatuses = Object.entries(summary.byStatus)
+            .map(([status, count]) => ({
+              status,
+              count,
+              config: statusConfig[status] || { color: '#6b7280', icon: '⚪', priority: 99 }
+            }))
+            .sort((a, b) => {
+              // Sort by priority first, then by count descending
+              if (a.config.priority !== b.config.priority) {
+                return a.config.priority - b.config.priority;
+              }
+              return b.count - a.count;
+            });
+
+          // Build the bars HTML
+          const barsHTML = sortedStatuses.map(({ status, count, config }) => {
+            const percentage = Math.round((count / total) * 100);
+            const barWidth = Math.max(percentage, 3); // Minimum 3% width for visibility
+            const displayStatus = status.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+
+            return `
+              <div class="qc-history-bar-row">
+                <div class="qc-history-bar-label">
+                  <span class="qc-history-bar-count">${count}</span>
+                  <span class="qc-history-bar-status">${displayStatus}</span>
+                </div>
+                <div class="qc-history-bar-container">
+                  <div class="qc-history-bar" style="width: ${barWidth}%; background-color: ${config.color};"></div>
+                </div>
+                <span class="qc-history-bar-percent">${percentage}%</span>
+              </div>`;
+          }).join('');
+
+          userHistoryHTML = `
+            <div id="qc-user-history" class="qc-user-history-section">
+              <div class="qc-user-history-header">
+                <span>📊 User History</span>
+                <span class="qc-user-history-total">${total} release${total > 1 ? 's' : ''}</span>
+              </div>
+              <div class="qc-user-history-bars">
+                ${barsHTML}
+              </div>
+            </div>`;
+        }
+      }
+
+  const div = document.createElement('div');
   div.id = 'qc-summary';
-  div.innerHTML = `<div id="qc-summary-title" class="qc-summary-header">
+
+  // Insert user history section before QC Checks if we have data
+  div.innerHTML = userHistoryHTML + `<div id="qc-summary-title" class="qc-summary-header">
     <span>👀 QC Checks</span>
   </div>`;
   
