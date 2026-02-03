@@ -2408,6 +2408,19 @@ function closeModalSafely(modal) {
         }, '*');
       }
     }
+
+    // Handle backoffice history updates
+    if (request.action === 'updateBackofficeHistory') {
+      const iframe = document.getElementById('qc-copilot-sidebar')
+                           ?.querySelector('iframe#qc-sidebar-iframe');
+      if (iframe?.contentWindow) {
+        iframe.contentWindow.postMessage({
+          tipo: 'updateBackofficeHistory',
+          backofficeHistory: request.backofficeHistory,
+          curatedArtistHistory: request.curatedArtistHistory
+        }, '*');
+      }
+    }
   });
 
   // ---- QCWT: provide lightweight DOM snapshot for approve/reject logging ----

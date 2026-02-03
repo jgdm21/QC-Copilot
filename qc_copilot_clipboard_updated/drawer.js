@@ -406,6 +406,28 @@ const validationDetails = {
   'clean_version_check': {
     title: 'Clean Version - Verify Explicit Exists',
     description: 'This track is marked as "Clean". A Clean version should only exist if there is a corresponding Explicit version that was previously distributed. Verify that an Explicit version of this track exists and was distributed before approving this Clean version.'
+  },
+  // ===== BACKOFFICE HISTORY ALERTS =====
+  'user_has_rejected_releases': {
+    title: 'User Has Rejected Releases',
+    description: (count) => `The user has ${count} previously rejected release${count > 1 ? 's' : ''} in the backoffice. This is a significant red flag indicating a pattern of problematic content. Review the current release with heightened scrutiny and consider the rejection reasons of previous releases.`
+  },
+  'user_history_summary': {
+    title: 'User History Summary',
+    description: (summary) => `The user has ${summary.total} total release${summary.total > 1 ? 's' : ''} in the backoffice. This provides context about the user's submission history. A high volume with few rejections indicates reliability, while a high rejection rate warrants careful review.`
+  },
+  'release_previously_in_backoffice': {
+    title: 'Release Previously in Backoffice',
+    description: 'This specific release has been processed before in the backoffice. Check the previous status and any notes to understand the history of this release submission.'
+  },
+  'curated_artist_user_history': {
+    title: 'Curated Artist - User History',
+    description: (artistName, total, statusCounts) => {
+      let statusStr = Object.entries(statusCounts)
+        .map(([status, count]) => `${count} ${status}`)
+        .join(', ');
+      return `The curated artist "${artistName}" has ${total} release${total > 1 ? 's' : ''} by this same user email (${statusStr}). This may indicate the user has previously submitted content claiming to be this artist. Review carefully - if previously approved, verify documentation is on file. If previously rejected, this is a strong fraud indicator.`;
+    }
   }
 };
 
@@ -1356,7 +1378,9 @@ let currentState = {
   potentialMashups: [],
   suspiciousEmailDomain: null,
   spotifyTracks: [], // NUEVO: almacenar tracks de Spotify cuando lleguen
-  audioAnalysisResults: [] // NUEVO: almacenar resultados del análisis de audio
+  audioAnalysisResults: [], // NUEVO: almacenar resultados del análisis de audio
+  backofficeHistory: null, // Historial del usuario en backoffice
+  curatedArtistHistory: [] // Historial de artistas curados por este usuario
 };
 
 // MODIFICADO: Función principal de update mejorada
@@ -1902,17 +1926,78 @@ function renderFullUI() {
   } else if (zendeskInfo && zendeskInfo.status !== 'searching') {
         if (zendeskInfo.ticketCount > 0) {
           let fraudSummaryText = '';
-          if (zendeskInfo.fraudTickets !== undefined && zendeskInfo.fraudTickets !== null) { 
+          if (zendeskInfo.fraudTickets !== undefined && zendeskInfo.fraudTickets !== null) {
             fraudSummaryText = ` (${zendeskInfo.fraudTickets} fraud-related)`;
           }
-          summaryItems.push({ 
-            msg: `User has Zendesk ticket(s)`, 
+          summaryItems.push({
+            msg: `User has Zendesk ticket(s)`,
             color: 'red',
             rawMsgKey: 'User has Zendesk ticket(s)',
             flagValue: [`${zendeskInfo.ticketCount} ticket${zendeskInfo.ticketCount > 1 ? 's' : ''}${fraudSummaryText}`],
             dynamicParams: { ticketCount: zendeskInfo.ticketCount, fraudTickets: zendeskInfo.fraudTickets }
           });
         }
+      }
+
+      // ===== BACKOFFICE HISTORY ALERTS =====
+      const backofficeHistory = currentState.backofficeHistory;
+      const curatedArtistHistory = currentState.curatedArtistHistory || [];
+
+      if (backofficeHistory) {
+        if (backofficeHistory.status === 'searching') {
+          summaryItems.push({
+            msg: 'Backoffice history: searching…',
+            color: 'yellow',
+            rawMsgKey: 'user_history_summary'
+          });
+        } else if (backofficeHistory.summary) {
+          const summary = backofficeHistory.summary;
+
+          // Alert for rejected releases
+          if (summary.rejected && summary.rejected.length > 0) {
+            const rejectedCount = summary.rejected.length;
+            const rejectedTitles = summary.rejected.slice(0, 5).map(r => `"${r.title}" (${r.status})`);
+            summaryItems.push({
+              msg: `User has ${rejectedCount} rejected release${rejectedCount > 1 ? 's' : ''}`,
+              color: 'red',
+              rawMsgKey: 'user_has_rejected_releases',
+              flagValue: rejectedTitles,
+              dynamicParams: { count: rejectedCount }
+            });
+          }
+
+          // General user history summary (if total releases > 0 and not all rejected)
+          if (summary.total > 0) {
+            const statusBreakdown = Object.entries(summary.byStatus)
+              .map(([status, count]) => `${count} ${status.replace(/_/g, ' ')}`)
+              .join(', ');
+            summaryItems.push({
+              msg: `User history: ${summary.total} release${summary.total > 1 ? 's' : ''} in backoffice`,
+              color: 'yellow',
+              rawMsgKey: 'user_history_summary',
+              flagValue: [statusBreakdown],
+              dynamicParams: { summary }
+            });
+          }
+        }
+      }
+
+      // Alert for curated artists with history by same user
+      if (curatedArtistHistory && curatedArtistHistory.length > 0) {
+        curatedArtistHistory.forEach(artistData => {
+          if (artistData.total > 0) {
+            const statusStr = Object.entries(artistData.statusCounts)
+              .map(([status, count]) => `${count} ${status.replace(/_/g, ' ')}`)
+              .join(', ');
+            summaryItems.push({
+              msg: `Curated artist "${artistData.artistName}" has ${artistData.total} release${artistData.total > 1 ? 's' : ''} by this user`,
+              color: 'red',
+              rawMsgKey: 'curated_artist_user_history',
+              flagValue: [statusStr],
+              dynamicParams: { artistName: artistData.artistName, total: artistData.total, statusCounts: artistData.statusCounts }
+            });
+          }
+        });
       }
       
       const map = { 
@@ -3059,6 +3144,12 @@ window.addEventListener('message', e => {
   } else if (e.data?.tipo === 'updateZendesk') {
     console.log('Actualizando solo Zendesk:', e.data.zendeskInfo);
     currentState.zendeskInfo = e.data.zendeskInfo;
+    renderFullUI();
+  } else if (e.data?.tipo === 'updateBackofficeHistory') {
+    console.log('Updating backoffice history:', e.data.backofficeHistory);
+    console.log('Curated artist history:', e.data.curatedArtistHistory);
+    currentState.backofficeHistory = e.data.backofficeHistory;
+    currentState.curatedArtistHistory = e.data.curatedArtistHistory || [];
     renderFullUI();
   } else if (e.data?.tipo === 'refreshAnalysis') {
     console.log('Drawer: Refresh analysis requested');

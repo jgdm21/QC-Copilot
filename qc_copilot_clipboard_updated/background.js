@@ -38,6 +38,7 @@ const QC_LIST_TTL_MS = 24 * 60 * 60 * 1000;      // 24h for curated/blacklists
 const QC_TERMS_TTL_MS = 5 * 60 * 1000;           // 5m for Suspicious Terms (faster updates)
 const QC_TENANT_TTL_MS = 6 * 60 * 60 * 1000;     // 6h for tenant tables
 const QC_ZENDESK_TTL_MS = 30 * 1000;             // 30s for zendesk proxy
+const QC_BACKOFFICE_TTL_MS = 5 * 60 * 1000;      // 5m for backoffice history cache
 
 // Storage helpers
 function getLocal(keys) {
@@ -251,6 +252,262 @@ async function computeTenantInfoByName(tenantName, tenantCodeFromData) {
   }
 }
 
+// ===== Backoffice History Search =====
+const BACKOFFICE_BASE_URL = 'https://backoffice.sonosuite.com/quality-control/revisions';
+
+// Parse HTML table rows from backoffice search results using regex (DOMParser not available in service worker)
+function parseBackofficeHTML(html) {
+  const releases = [];
+  try {
+    // Find all table rows with data-id attribute
+    const rowRegex = /<tr[^>]*data-id="([^"]+)"[^>]*>([\s\S]*?)<\/tr>/gi;
+    let rowMatch;
+
+    while ((rowMatch = rowRegex.exec(html)) !== null) {
+      try {
+        const rowId = rowMatch[1];
+        const rowContent = rowMatch[2];
+
+        // Extract all td cells
+        const tdRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi;
+        const cells = [];
+        let tdMatch;
+        while ((tdMatch = tdRegex.exec(rowContent)) !== null) {
+          cells.push(tdMatch[1]);
+        }
+
+        if (cells.length < 10) continue;
+
+        // Helper to extract text content (strip HTML tags)
+        const stripHtml = (str) => (str || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        const decodeHtmlEntities = (str) => (str || '')
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&quot;/g, '"')
+          .replace(/&#39;/g, "'")
+          .replace(/&#x27;/g, "'")
+          .replace(/&#039;/g, "'");
+
+        // 0: Client Code, 1: Support Level, 2: Type
+        const clientCode = stripHtml(cells[0]) || '';
+        const supportLevel = stripHtml(cells[1]) || '';
+        const type = stripHtml(cells[2]) || '';
+
+        // 3: Release cell - extract h4 for title and p strong for artist
+        const releaseCell = cells[3] || '';
+        const titleMatch = releaseCell.match(/<h4[^>]*>([^<]*)<\/h4>/i);
+        const title = decodeHtmlEntities(titleMatch ? titleMatch[1].trim() : '');
+
+        const artistMatch = releaseCell.match(/<strong>([^<]*)<\/strong>/i);
+        const artist = decodeHtmlEntities(artistMatch ? artistMatch[1].trim() : '');
+
+        // 4: Release ID
+        const releaseId = stripHtml(cells[4]) || '';
+
+        // 5: UPC
+        const upc = stripHtml(cells[5]) || '';
+
+        // 6: Ticket - extract from anchor tag
+        const ticketMatch = cells[6]?.match(/<a[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/i);
+        const ticket = ticketMatch ? ticketMatch[2].trim() : '';
+        const ticketUrl = ticketMatch ? ticketMatch[1] : '';
+
+        // 7: Status - extract from badge span
+        const statusMatch = cells[7]?.match(/<span[^>]*class="[^"]*badge[^"]*"[^>]*>([^<]*)<\/span>/i);
+        const status = statusMatch ? statusMatch[1].trim().toLowerCase().replace(/_/g, ' ') : '';
+
+        // 10: Date - look for paragraph or text content
+        const dateCell = cells[10] || cells[cells.length - 2] || '';
+        const dateMatch = dateCell.match(/(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2})/);
+        const date = dateMatch ? dateMatch[1] : stripHtml(dateCell);
+
+        releases.push({
+          id: rowId,
+          clientCode,
+          supportLevel,
+          type,
+          title,
+          artist,
+          releaseId,
+          upc,
+          ticket,
+          ticketUrl,
+          status,
+          date
+        });
+      } catch (e) {
+        warn('Error parsing backoffice row:', e);
+      }
+    }
+  } catch (e) {
+    warn('Error parsing backoffice HTML:', e);
+  }
+  return releases;
+}
+
+// Fetch all pages of backoffice search results
+async function fetchBackofficeHistory(searchField, searchValue, maxPages = 10) {
+  const allReleases = [];
+  let page = 1;
+  let hasMore = true;
+
+  while (hasMore && page <= maxPages) {
+    try {
+      const url = `${BACKOFFICE_BASE_URL}?state=all&searchField=${encodeURIComponent(searchField)}&searchValue=${encodeURIComponent(searchValue)}&page=${page}`;
+      log('Fetching backoffice page:', { page, url });
+
+      const resp = await fetch(url, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Accept': 'text/html'
+        }
+      });
+
+      if (!resp.ok) {
+        warn('Backoffice fetch failed:', resp.status);
+        break;
+      }
+
+      const html = await resp.text();
+      const releases = parseBackofficeHTML(html);
+
+      if (releases.length === 0) {
+        hasMore = false;
+      } else {
+        allReleases.push(...releases);
+        page++;
+
+        // Check if there's a next page link
+        if (!html.includes(`page=${page}`) && !html.includes(`page=${page + 1}`)) {
+          hasMore = false;
+        }
+      }
+    } catch (e) {
+      warn('Error fetching backoffice page:', e);
+      break;
+    }
+  }
+
+  log('Backoffice search complete:', { searchField, searchValue, total: allReleases.length });
+  return allReleases;
+}
+
+// Search backoffice for user email history with caching
+async function getBackofficeHistoryCached(email, currentReleaseId) {
+  const key = `QC_BACKOFFICE_${normalizeStr(email)}`;
+  const now = Date.now();
+
+  try {
+    const store = await getLocal([key]);
+    const entry = store[key];
+    if (entry && entry.expiresAt && entry.expiresAt > now && Array.isArray(entry.data)) {
+      log('Backoffice cache hit for:', email);
+      return processBackofficeResults(entry.data, currentReleaseId);
+    }
+  } catch (e) {
+    warn('Error reading backoffice cache:', e);
+  }
+
+  try {
+    const releases = await fetchBackofficeHistory('user_email', email);
+    await setLocal({ [key]: { data: releases, expiresAt: now + QC_BACKOFFICE_TTL_MS } });
+    return processBackofficeResults(releases, currentReleaseId);
+  } catch (e) {
+    warn('Error fetching backoffice history:', e);
+    return { status: 'error', releases: [], summary: null };
+  }
+}
+
+// Search backoffice for artist name by same user email
+async function searchCuratedArtistInBackoffice(artistName, userEmail) {
+  // First get all releases by this user
+  const key = `QC_BACKOFFICE_${normalizeStr(userEmail)}`;
+  const now = Date.now();
+  let allReleases = [];
+
+  try {
+    const store = await getLocal([key]);
+    const entry = store[key];
+    if (entry && entry.expiresAt && entry.expiresAt > now && Array.isArray(entry.data)) {
+      allReleases = entry.data;
+    } else {
+      allReleases = await fetchBackofficeHistory('user_email', userEmail);
+      await setLocal({ [key]: { data: allReleases, expiresAt: now + QC_BACKOFFICE_TTL_MS } });
+    }
+  } catch (e) {
+    warn('Error fetching releases for curated artist search:', e);
+    return { artistName, releases: [], statusCounts: {} };
+  }
+
+  // Filter releases that contain this artist name
+  const artistLower = artistName.toLowerCase().trim();
+  const matchingReleases = allReleases.filter(r => {
+    const releaseArtist = (r.artist || '').toLowerCase();
+    // Check if artist appears in the release artist field (may contain multiple artists separated by ·)
+    return releaseArtist.includes(artistLower) ||
+           releaseArtist.split(/[·•‧・\-\&\/\+\,\|\;]/).some(a => a.trim().toLowerCase() === artistLower);
+  });
+
+  // Count by status
+  const statusCounts = {};
+  matchingReleases.forEach(r => {
+    const status = r.status || 'unknown';
+    statusCounts[status] = (statusCounts[status] || 0) + 1;
+  });
+
+  return {
+    artistName,
+    releases: matchingReleases,
+    total: matchingReleases.length,
+    statusCounts
+  };
+}
+
+// Process backoffice results and generate summary
+function processBackofficeResults(releases, currentReleaseId) {
+  const summary = {
+    total: releases.length,
+    byStatus: {},
+    byType: {},
+    rejected: [],
+    approved: [],
+    pending: [],
+    currentReleaseHistory: []
+  };
+
+  releases.forEach(r => {
+    // Count by status
+    const status = r.status || 'unknown';
+    summary.byStatus[status] = (summary.byStatus[status] || 0) + 1;
+
+    // Count by type
+    const type = r.type || 'unknown';
+    summary.byType[type] = (summary.byType[type] || 0) + 1;
+
+    // Categorize
+    if (status === 'rejected' || status === 'disapproved') {
+      summary.rejected.push(r);
+    } else if (status === 'approved') {
+      summary.approved.push(r);
+    } else if (status === 'pending' || status === 'under review') {
+      summary.pending.push(r);
+    }
+
+    // Check if this is the current release
+    if (currentReleaseId && r.releaseId === currentReleaseId) {
+      summary.currentReleaseHistory.push(r);
+    }
+  });
+
+  return {
+    status: 'ok',
+    releases,
+    summary
+  };
+}
+
 async function getZendeskInfoCached(email) {
   const key = `QC_ZENDESK_${normalizeStr(email)}`;
   const now = Date.now();
@@ -416,6 +673,31 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'QCWT_RETRY_NOW') {
     processOutbox();
     sendResponse && sendResponse({ ok: true });
+    return true;
+  }
+
+  // ===== Backoffice History Search =====
+  if (request.action === 'searchBackofficeHistory' && request.email) {
+    (async () => {
+      try {
+        const result = await getBackofficeHistoryCached(request.email, request.currentReleaseId || '');
+        sendResponse && sendResponse(result);
+      } catch (e) {
+        sendResponse && sendResponse({ status: 'error', error: String(e) });
+      }
+    })();
+    return true;
+  }
+
+  if (request.action === 'searchCuratedArtistHistory' && request.artistName && request.email) {
+    (async () => {
+      try {
+        const result = await searchCuratedArtistInBackoffice(request.artistName, request.email);
+        sendResponse && sendResponse(result);
+      } catch (e) {
+        sendResponse && sendResponse({ status: 'error', error: String(e) });
+      }
+    })();
     return true;
   }
 
@@ -729,6 +1011,42 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 try { chrome.tabs.sendMessage(targetTabId, { action: 'updateZendeskInfo', zendeskInfo: info }); } catch {}
               }
             } catch(_) {}
+
+            // Follow-up: Backoffice history lookup (non-blocking)
+            try {
+              const requesterEmail = String(rd.cards?.User?.Email || '').trim();
+              const currentReleaseId = rd.releaseId || rd.basicInfo?.['Release ID'] || '';
+              const targetTabId = sender && sender.tab && sender.tab.id;
+
+              if (requesterEmail && targetTabId) {
+                log('Starting backoffice history lookup for:', requesterEmail);
+                const historyResult = await getBackofficeHistoryCached(requesterEmail, currentReleaseId);
+
+                // Also search for curated artists in backoffice if we found any
+                let curatedArtistHistory = [];
+                if (flags.curatedArtists && flags.curatedArtists.length > 0) {
+                  log('Searching curated artists in backoffice:', flags.curatedArtists);
+                  for (const artist of flags.curatedArtists) {
+                    const artistResult = await searchCuratedArtistInBackoffice(artist, requesterEmail);
+                    if (artistResult.total > 0) {
+                      curatedArtistHistory.push(artistResult);
+                    }
+                  }
+                }
+
+                try {
+                  chrome.tabs.sendMessage(targetTabId, {
+                    action: 'updateBackofficeHistory',
+                    backofficeHistory: historyResult,
+                    curatedArtistHistory
+                  });
+                } catch (e) {
+                  warn('Error sending backoffice history to tab:', e);
+                }
+              }
+            } catch(e) {
+              warn('Error in backoffice history lookup:', e);
+            }
           } catch (inner) {
             sendResponse({ error: String(inner) });
           }
