@@ -63,6 +63,31 @@ body.qc-font-xl { --qc-font-size-base: 15px; }
 /* ====================================
    HEADER
    ==================================== */
+#qc-tabs-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--qc-bg-secondary);
+  border-bottom: 1px solid var(--qc-border-color);
+}
+
+#qc-tabs-header .qc-tab-btn {
+  padding: 6px 12px;
+  border: 1px solid var(--qc-border-color);
+  background: var(--qc-bg-tertiary);
+  border-radius: var(--qc-radius-sm);
+  font-size: var(--qc-font-size-base);
+  color: var(--qc-text-primary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+#qc-tabs-header .qc-tab-btn:hover {
+  background: rgba(255,255,255,0.1);
+}
+
 #qc-header {
   display: flex;
   align-items: center;

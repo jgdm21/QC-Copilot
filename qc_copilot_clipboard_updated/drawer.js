@@ -142,6 +142,75 @@ window.qcData = () => QC_COMPARISON_DATA.getData();
 window.qcClearData = () => QC_COMPARISON_DATA.clearData();
 window.qcExportData = () => QC_COMPARISON_DATA.exportData();
 
+// ====================================
+// FONT SIZE CONTROL SYSTEM
+// ====================================
+const QC_FONT_SIZES = ['xs', 'sm', 'md', 'lg', 'xl'];
+const QC_FONT_LABELS = { 'xs': 'XS', 'sm': 'S', 'md': 'M', 'lg': 'L', 'xl': 'XL' };
+const QC_FONT_STORAGE_KEY = 'qcFontSize';
+
+function initFontSizeControls() {
+  const savedSize = localStorage.getItem(QC_FONT_STORAGE_KEY) || 'md';
+  applyFontSize(savedSize);
+
+  const decreaseBtn = document.getElementById('qc-font-decrease');
+  const increaseBtn = document.getElementById('qc-font-increase');
+  const fontLabel = document.getElementById('qc-font-label');
+
+  if (decreaseBtn) {
+    decreaseBtn.onclick = () => {
+      const current = getCurrentFontSize();
+      const idx = QC_FONT_SIZES.indexOf(current);
+      if (idx > 0) {
+        const newSize = QC_FONT_SIZES[idx - 1];
+        applyFontSize(newSize);
+        localStorage.setItem(QC_FONT_STORAGE_KEY, newSize);
+      }
+    };
+  }
+
+  if (increaseBtn) {
+    increaseBtn.onclick = () => {
+      const current = getCurrentFontSize();
+      const idx = QC_FONT_SIZES.indexOf(current);
+      if (idx < QC_FONT_SIZES.length - 1) {
+        const newSize = QC_FONT_SIZES[idx + 1];
+        applyFontSize(newSize);
+        localStorage.setItem(QC_FONT_STORAGE_KEY, newSize);
+      }
+    };
+  }
+}
+
+function getCurrentFontSize() {
+  for (const size of QC_FONT_SIZES) {
+    if (document.body.classList.contains(`qc-font-${size}`)) {
+      return size;
+    }
+  }
+  return 'md';
+}
+
+function applyFontSize(size) {
+  // Remove all font size classes
+  QC_FONT_SIZES.forEach(s => document.body.classList.remove(`qc-font-${s}`));
+  // Add the new one
+  document.body.classList.add(`qc-font-${size}`);
+  // Update label
+  const fontLabel = document.getElementById('qc-font-label');
+  if (fontLabel) {
+    fontLabel.textContent = QC_FONT_LABELS[size];
+  }
+  QC_LOGGING.debug(`Font size changed to: ${size}`);
+}
+
+// Initialize font controls when DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initFontSizeControls);
+} else {
+  initFontSizeControls();
+}
+
 // MODIFICADO: No bloquear el render por Spotify
 // Prefetch pero sin bloquear
 if (!window.__spotifyTopTracksPromise) {
@@ -2351,128 +2420,185 @@ function renderFullUI() {
   
       const anyAlerts = Object.values(groups).some(a => a.length);
       if (!anyAlerts) {
-        div.innerHTML += `<div class="qc-alerts-grid">
-            <div class="qc-grid-item">
-                <span class="qc-alert-icon">✅</span>
-                <span class="qc-alert-message">No Alerts Found</span>
-                <span class="qc-match-separator"></span>
-                <div class="qc-match-column"></div>
-            </div>
-        </div>`;
+        div.innerHTML += `<table class="qc-alerts-table">
+          <thead>
+            <tr>
+              <th>Alerta</th>
+              <th>Dato</th>
+              <th>Detalle</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td colspan="3" style="text-align:center; padding:16px; color:var(--qc-accent-green);">
+                ✅ No Alerts Found
+              </td>
+            </tr>
+          </tbody>
+        </table>`;
       } else {
-        div.innerHTML += `<div class="qc-alerts-grid">` +
-          Object.entries(groups).map(([k, a]) =>
-            a.length
-              ? `<div class="qc-summary-group-title">${escapeHTML(k.charAt(0).toUpperCase() + k.slice(1))}</div>` +
-                a.map(it => {
-                  let itemContent = `<div class="qc-grid-item">`;
-                  
-                  itemContent += `<span class="qc-alert-icon qc-alert-icon-${it.color === 'red' ? 'red' : 'yellow'}">
-                                        ${it.color === 'red' ? '🔴' : '🟡'}
-                                        <button class="qc-help-button" data-alert-key="${it.rawMsgKey}" data-params='${JSON.stringify(it.dynamicParams || {})}' title="More info">
-                                            ${questionMarkSVG()}
-                                        </button>
-                                      </span>`;
-                  itemContent += `<span class="qc-alert-message">${escapeHTML(it.msg)}</span>`;
+        // Build table with new 3-column format
+        let tableHTML = '';
+        Object.entries(groups).forEach(([groupName, alerts]) => {
+          if (!alerts.length) return;
 
-                  let flagItems = [];
-                  if (it.flagValue) {
-                      flagItems = it.flagValue;
-                  } else if (it.flagType) {
-                      switch (it.flagType) {
-                          case 'invalidCreditComposer':
-                            flagItems = invalidCredits.composer;
-                            break;
-                          case 'invalidCreditLyricist':
-                            flagItems = invalidCredits.lyricist;
-                            break;
-                          case 'potentialMashups':
-                              flagItems = potentialMashups;
-                              break;
-                          case 'audioMatchTracks':
-                              flagItems = audioMatchTracks;
-                              break;
-                          case 'userStrikes':
-                              flagItems = releaseData.userStrikes;
-                              break;
-                          default:
-                              if (flags[it.flagType]) {
-                                  flagItems = flags[it.flagType];
-                              }
-                              break;
-                      }
+          tableHTML += `<div class="qc-summary-group-title">${escapeHTML(groupName.charAt(0).toUpperCase() + groupName.slice(1))}</div>`;
+          tableHTML += `<table class="qc-alerts-table">
+            <thead>
+              <tr>
+                <th>Alerta</th>
+                <th>Dato</th>
+                <th>Detalle</th>
+              </tr>
+            </thead>
+            <tbody>`;
+
+          alerts.forEach(it => {
+            // Get flag items for the "Dato" column
+            let flagItems = [];
+            if (it.flagValue) {
+              flagItems = it.flagValue;
+            } else if (it.flagType) {
+              switch (it.flagType) {
+                case 'invalidCreditComposer':
+                  flagItems = invalidCredits.composer;
+                  break;
+                case 'invalidCreditLyricist':
+                  flagItems = invalidCredits.lyricist;
+                  break;
+                case 'potentialMashups':
+                  flagItems = potentialMashups;
+                  break;
+                case 'audioMatchTracks':
+                  flagItems = audioMatchTracks;
+                  break;
+                case 'userStrikes':
+                  flagItems = releaseData.userStrikes;
+                  break;
+                default:
+                  if (flags[it.flagType]) {
+                    flagItems = flags[it.flagType];
                   }
+                  break;
+              }
+            }
 
-                  if (flagItems && flagItems.length > 0) {
-                    itemContent += `<span class="qc-match-separator">|</span>`;
-                    itemContent += `<div class="qc-match-column">`;
-                    
-                    // Manejo especial para resultados detallados de audio
-                    if (it.detailedAudioResults) {
-                      flagItems.forEach(trackResult => {
-                        // NUEVO: Manejar tanto la estructura antigua (trackTitle + details) como la nueva (trackTitle + alerts)
-                        const trackTitle = trackResult.trackTitle || trackResult.title || 'Unknown Track';
-                        const trackDetails = trackResult.alerts || trackResult.details || [];
-                        const trackNum = trackResult.trackNumber || trackTitle.match(/Track\s+(\d+)/)?.[1] || '';
-                        
-                        itemContent += `<div class="qc-match-item-line qc-audio-track-detail" data-rawkey="${escapeHTML(it.rawMsgKey)}" data-flag="${escapeHTML(it.flagType || '')}" data-track-num="${escapeHTML(trackNum)}"><span>- </span><strong>${escapeHTML(trackTitle)}</strong></div>`;
-                        
-                        trackDetails.forEach(detail => {
-                          itemContent += `<div class="qc-match-item-line qc-audio-sub-detail" data-rawkey="${escapeHTML(it.rawMsgKey)}" data-flag="${escapeHTML(it.flagType || '')}" data-track-num="${escapeHTML(trackNum)}"><span>  • </span><code>${escapeHTML(detail)}</code></div>`;
-                        });
-                      });
-                    } else if (it.flagType === 'invalidCreditComposer' || it.flagType === 'invalidCreditLyricist') {
-                      // Agrupar por nombre y listar pistas/contextos debajo
-                      flagItems.forEach(entry => {
-                        const name = entry?.name || String(entry || '');
-                        const contexts = Array.isArray(entry?.contexts) ? entry.contexts : [];
-                        itemContent += `<div class="qc-match-item-line" data-rawkey="${escapeHTML(it.rawMsgKey)}" data-flag="${escapeHTML(it.flagType || '')}"><span>- </span><code>${escapeHTML(name)}</code></div>`;
-                        contexts.forEach(ctx => {
-                          itemContent += `<div class="qc-match-item-line qc-audio-sub-detail" data-rawkey="${escapeHTML(it.rawMsgKey)}" data-flag="${escapeHTML(it.flagType || '')}"><span>  • </span><code>${escapeHTML(ctx)}</code></div>`;
-                        });
-                      });
-                    } else {
-                      // Renderizado normal para otros tipos
-                      flagItems.forEach(item => {
-                        itemContent += `<div class="qc-match-item-line" data-rawkey="${escapeHTML(it.rawMsgKey)}" data-flag="${escapeHTML(it.flagType || '')}"><span>- </span><code>${escapeHTML(item)}</code></div>`;
-                      });
-                    }
-                    
-itemContent += `</div>`;
-                  } else {
-                    itemContent += `<span class="qc-match-separator"></span>`;
-                    itemContent += `<div class="qc-match-column"></div>`;
+            // Build "Dato" column content
+            let dataContent = '';
+            if (flagItems && flagItems.length > 0) {
+              if (it.detailedAudioResults) {
+                // Audio results with track details
+                dataContent = flagItems.map(trackResult => {
+                  const trackTitle = trackResult.trackTitle || trackResult.title || 'Unknown Track';
+                  return `<span class="qc-alert-data">${escapeHTML(trackTitle)}</span>`;
+                }).join('<br>');
+              } else if (it.flagType === 'invalidCreditComposer' || it.flagType === 'invalidCreditLyricist') {
+                // Credit validation entries
+                dataContent = flagItems.map(entry => {
+                  const name = entry?.name || String(entry || '');
+                  return `<span class="qc-alert-data">${escapeHTML(name)}</span>`;
+                }).join('<br>');
+              } else {
+                // Normal items
+                dataContent = flagItems.map(item =>
+                  `<span class="qc-alert-data">${escapeHTML(String(item))}</span>`
+                ).join('<br>');
+              }
+            } else {
+              dataContent = '<span style="color:var(--qc-text-muted);">-</span>';
+            }
+
+            // Build "Detalle" column content
+            let detailContent = '';
+            if (it.detailedAudioResults && flagItems && flagItems.length > 0) {
+              // Show track details for audio results
+              detailContent = flagItems.map(trackResult => {
+                const trackDetails = trackResult.alerts || trackResult.details || [];
+                return trackDetails.length > 0
+                  ? trackDetails.map(d => escapeHTML(d)).join(', ')
+                  : '<span style="color:var(--qc-text-muted);">-</span>';
+              }).join('<br>');
+            } else if ((it.flagType === 'invalidCreditComposer' || it.flagType === 'invalidCreditLyricist') && flagItems && flagItems.length > 0) {
+              // Show contexts for credit validation
+              detailContent = flagItems.map(entry => {
+                const contexts = Array.isArray(entry?.contexts) ? entry.contexts : [];
+                return contexts.length > 0
+                  ? contexts.map(ctx => escapeHTML(ctx)).join(', ')
+                  : '<span style="color:var(--qc-text-muted);">-</span>';
+              }).join('<br>');
+            } else {
+              // Use validation description as detail
+              const validationInfo = validationDetails[it.rawMsgKey];
+              if (validationInfo) {
+                let desc = validationInfo.description;
+                if (typeof desc === 'function') {
+                  // Try to call with dynamic params
+                  const params = it.dynamicParams || {};
+                  try {
+                    desc = desc(params.trackTitle || params.title || '', params.count || flagItems?.length || 0, params);
+                  } catch(e) {
+                    desc = 'See help for details';
                   }
+                }
+                // Truncate long descriptions
+                if (desc && desc.length > 80) {
+                  desc = desc.substring(0, 77) + '...';
+                }
+                detailContent = `<span class="qc-alert-detail">${escapeHTML(desc || '-')}</span>`;
+              } else {
+                detailContent = '<span style="color:var(--qc-text-muted);">-</span>';
+              }
+            }
 
-                  itemContent += `</div>`;
-                  return itemContent;
-                }).join('')
-              : ''
-          ).join('') +
-          `</div>`;
+            tableHTML += `<tr data-rawkey="${escapeHTML(it.rawMsgKey)}" data-flag="${escapeHTML(it.flagType || '')}">
+              <td>
+                <div class="qc-alert-cell">
+                  <span class="qc-alert-icon">${it.color === 'red' ? '🔴' : '🟡'}</span>
+                  <span class="qc-alert-text">${escapeHTML(it.msg)}</span>
+                  <button class="qc-help-button" data-alert-key="${escapeHTML(it.rawMsgKey)}" data-params='${JSON.stringify(it.dynamicParams || {})}' title="More info">
+                    ${questionMarkSVG()}
+                  </button>
+                </div>
+              </td>
+              <td>${dataContent}</td>
+              <td>${detailContent}</td>
+            </tr>`;
+          });
+
+          tableHTML += `</tbody></table>`;
+        });
+
+        div.innerHTML += tableHTML;
       }
+
+      // LEGACY COMPATIBILITY: Keep qc-grid-item references working
+      div.querySelectorAll('.qc-alerts-table tbody tr').forEach(row => {
+        row.classList.add('qc-grid-item');
+      });
+
       results.prepend(div);
 
-  // Añadir botones DuckDuckGo en el resumen
+  // Añadir botones DuckDuckGo/YouTube en el resumen (NEW TABLE FORMAT)
   try {
-    const addIconsFor = (labelText, items, includeDuck = true, includeYouTube = false) => {
-      const rows = Array.from(results.querySelectorAll('.qc-grid-item'));
-      const row = rows.find(r => r.innerText && r.innerText.toLowerCase().includes(labelText));
-      if (!row || !items?.length) return;
-      const matchCol = row.querySelector('.qc-match-column');
-      if (!matchCol) return;
-      Array.from(matchCol.querySelectorAll('.qc-match-item-line code')).forEach(codeEl => {
-        const q = codeEl.textContent.trim();
+    // Helper function to add search icons to table data cells
+    const addIconsToTableRow = (row, includeDuck = true, includeYouTube = false) => {
+      // Find the second column (Dato) which contains the data
+      const dataCell = row.querySelector('td:nth-child(2)');
+      if (!dataCell) return;
+
+      // Get all qc-alert-data spans in the data column
+      const dataSpans = dataCell.querySelectorAll('.qc-alert-data');
+      dataSpans.forEach(span => {
+        const q = span.textContent.trim();
         if (!q) return;
-        let iconCol = codeEl.parentElement.querySelector('.qc-icon-col');
+
+        // Create icon container if not exists
+        let iconCol = span.parentElement.querySelector('.qc-icon-col');
         if (!iconCol) {
           iconCol = document.createElement('span');
           iconCol.className = 'qc-icon-col';
-          codeEl.parentElement.insertBefore(iconCol, codeEl);
-        } else {
-          if (iconCol.nextSibling !== codeEl) {
-            codeEl.parentElement.insertBefore(iconCol, codeEl);
-          }
+          iconCol.style.cssText = 'display:inline-flex; align-items:center; gap:4px; margin-left:6px;';
+          span.parentElement.insertBefore(iconCol, span.nextSibling);
         }
 
         if (includeDuck) {
@@ -2498,74 +2624,26 @@ itemContent += `</div>`;
       });
     };
 
-    addIconsFor('curated artist', flags.curatedArtists, true, true);
-    addIconsFor('blacklisted label', flags.blacklistLabels, true, false);
-    
-    // CORREGIDO: Evitar duplicación de iconos de YouTube para "matches top song"
-    // Solo agregar iconos para filas que NO contengan "track" en el texto
-    const generalTopSongRows = Array.from(results.querySelectorAll('.qc-grid-item')).filter(r => 
-      r.innerText && r.innerText.toLowerCase().includes('matches top song') && !r.innerText.toLowerCase().includes('track')
-    );
-    generalTopSongRows.forEach(row => {
-      const matchCol = row.querySelector('.qc-match-column');
-      if (!matchCol) return;
-      Array.from(matchCol.querySelectorAll('.qc-match-item-line code')).forEach(codeEl => {
-        const q = codeEl.textContent.trim();
-        if (!q) return;
-        let iconCol = codeEl.parentElement.querySelector('.qc-icon-col');
-        if (!iconCol) {
-          iconCol = document.createElement('span');
-          iconCol.className = 'qc-icon-col';
-          codeEl.parentElement.insertBefore(iconCol, codeEl);
-        } else {
-          if (iconCol.nextSibling !== codeEl) {
-            codeEl.parentElement.insertBefore(iconCol, codeEl);
-          }
-        }
+    // Find rows by alert text and add icons
+    const tableRows = Array.from(results.querySelectorAll('.qc-alerts-table tbody tr'));
 
-        const yt = document.createElement('a');
-        yt.href = `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`;
-        yt.target = '_blank';
-        yt.rel = 'noopener noreferrer';
-        yt.className = 'qc-inline-icon qc-yt-inline';
-        yt.title = 'Search on YouTube';
-        yt.innerHTML = youtubeIconSVG();
-        iconCol.appendChild(yt);
-      });
-    });
-    
-    // Agregar iconos para "Track X matches top song" - solo para filas que contengan "track"
-    const trackTopSongRows = Array.from(results.querySelectorAll('.qc-grid-item')).filter(r => 
-      r.innerText && r.innerText.toLowerCase().includes('track') && r.innerText.toLowerCase().includes('matches top song')
-    );
-    trackTopSongRows.forEach(row => {
-      const matchCol = row.querySelector('.qc-match-column');
-      if (!matchCol) return;
-      Array.from(matchCol.querySelectorAll('.qc-match-item-line code')).forEach(codeEl => {
-        const q = codeEl.textContent.trim();
-        if (!q) return;
-        let iconCol = codeEl.parentElement.querySelector('.qc-icon-col');
-        if (!iconCol) {
-          iconCol = document.createElement('span');
-          iconCol.className = 'qc-icon-col';
-          codeEl.parentElement.insertBefore(iconCol, codeEl);
-        } else {
-          if (iconCol.nextSibling !== codeEl) {
-            codeEl.parentElement.insertBefore(iconCol, codeEl);
-          }
-        }
+    tableRows.forEach(row => {
+      const alertText = (row.querySelector('.qc-alert-text')?.textContent || '').toLowerCase();
 
-        const yt = document.createElement('a');
-        yt.href = `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`;
-        yt.target = '_blank';
-        yt.rel = 'noopener noreferrer';
-        yt.className = 'qc-inline-icon qc-yt-inline';
-        yt.title = 'Search on YouTube';
-        yt.innerHTML = youtubeIconSVG();
-        iconCol.appendChild(yt);
-      });
+      // Curated artist - add both duck and YouTube
+      if (alertText.includes('curated artist')) {
+        addIconsToTableRow(row, true, true);
+      }
+      // Blacklisted label - add only duck
+      else if (alertText.includes('blacklisted label')) {
+        addIconsToTableRow(row, true, false);
+      }
+      // Matches top song - add YouTube
+      else if (alertText.includes('matches top song')) {
+        addIconsToTableRow(row, false, true);
+      }
     });
-  } catch (e) { console.warn('Could not add inline duck buttons:', e); }
+  } catch (e) { console.warn('Could not add inline search buttons:', e); }
 
   // MODIFICADO: Delegación de clic mejorada con mejor targeting para audio tracks
   try {

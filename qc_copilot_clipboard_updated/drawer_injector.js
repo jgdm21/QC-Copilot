@@ -933,48 +933,31 @@ function injectDrawer() {
   const sidebar = document.createElement('div');
   sidebar.id = 'qc-copilot-sidebar';
 
-  // === GESTIÓN DE POSICIÓN CON MENÚ ===
+  // === GESTIÓN DE POSICIÓN DEL SIDEBAR ===
+  // NOTA: El sidebar ya NO se mueve automáticamente con el menú.
+  // El usuario controla la posición manualmente con el botón de toggle.
   let originalPosition = localStorage.getItem('qcSidebarPosition') || 'right';
   let sidebarPosition = originalPosition;
   let isTemporarilyMoved = false;
-  let isTemporarilyMovedForAudio = false; // NUEVO: Variable para modales de audio
-  
-  // Si el menú está abierto Y la posición preferida es izquierda, mover temporalmente a la derecha
-  if (isNavigationMenuOpen() && originalPosition === 'left') {
-    sidebarPosition = 'right';
-    isTemporarilyMoved = true;
-    console.log('QC Copilot: Menu is open and preferred position is left, temporarily moving to right');
-  }
+  let isTemporarilyMovedForAudio = false;
 
   // Estado minimizado
   let minimized = localStorage.getItem('qcSidebarMinimized') === 'true';
 
-  // MODIFICADO: Función setSidebarPosition mejorada para soportar modales de audio
+  // Función para cambiar la posición del sidebar
   function setSidebarPosition(position, isUserAction = false, isForAudio = false) {
-    const previousPosition = sidebarPosition;
     sidebarPosition = position;
-    
+
     if (isUserAction) {
-      // El usuario cambió manualmente la posición
+      // El usuario cambió manualmente la posición - guardar preferencia
       originalPosition = position;
       localStorage.setItem('qcSidebarPosition', position);
       isTemporarilyMoved = false;
-      isTemporarilyMovedForAudio = false; // Reset audio modal movement state
-      
-      // Si el usuario mueve el sidebar a la izquierda y el menú está abierto, cerrar el menú
-      if (position === 'left' && isNavigationMenuOpen()) {
-        console.log('QC Copilot: User moved sidebar to left while menu is open, closing menu');
-        setTimeout(() => {
-          closeNavigationMenu();
-        }, 100);
-      }
+      isTemporarilyMovedForAudio = false;
     } else if (isForAudio) {
-      // Movimiento por modal de audio
+      // Movimiento por modal de audio (temporal)
       isTemporarilyMovedForAudio = true;
-      isTemporarilyMoved = false; // No es por menú
-    } else if (!isUserAction && !isTemporarilyMoved && !isTemporarilyMovedForAudio) {
-      // Actualización automática que no es temporal
-      localStorage.setItem('qcSidebarPosition', position);
+      isTemporarilyMoved = false;
     }
     
     applySidebarStyles();
@@ -1070,155 +1053,15 @@ function injectDrawer() {
   };
 
   // === OBSERVER PARA DETECTAR CAMBIOS EN EL MENÚ ===
+  // NOTA: El sidebar YA NO se mueve cuando el menú se abre/cierra.
+  // El usuario pidió que el menú se abra AL LADO del copilot sin moverlo.
+  // Solo mantenemos logging para debugging si es necesario.
   function setupMenuObserver() {
-    let menuWasOpen = isNavigationMenuOpen();
-    console.log('QC Copilot: Initial menu state:', menuWasOpen);
-    
-    // Si el menú ya está abierto al cargar y el sidebar preferido es izquierda, mover a derecha
-    if (menuWasOpen && originalPosition === 'left' && sidebarPosition === 'left') {
-      console.log('QC Copilot: Menu is already open on load, moving sidebar to right');
-      sidebarPosition = 'right';
-      isTemporarilyMoved = true;
-      applySidebarStyles();
-      updateResizerPosition();
-      showNotification('↔️ Sidebar moved to right (menu already open)', 'right');
+    if (qcShouldDebug()) {
+      console.log('QC Copilot: Menu observer initialized (sidebar will NOT move with menu)');
+      console.log('QC Copilot: Initial menu state:', isNavigationMenuOpen() ? 'OPEN' : 'CLOSED');
     }
-    
-    // Función principal para manejar cambios de estado del menú
-    const handleMenuStateChange = (isOpening) => {
-      console.log('QC Copilot: Menu state changing to:', isOpening ? 'OPEN' : 'CLOSED');
-      
-      if (originalPosition === 'left') {
-        if (isOpening && sidebarPosition === 'left') {
-          // El menú se está abriendo y el sidebar está a la izquierda
-          console.log('QC Copilot: Moving sidebar to right (menu opening)');
-          sidebarPosition = 'right';
-          isTemporarilyMoved = true;
-          applySidebarStyles();
-          updateResizerPosition();
-          showNotification('↔️ Sidebar temporarily moved to right (menu open)', 'right');
-        } else if (!isOpening && isTemporarilyMoved && sidebarPosition === 'right') {
-          // El menú se está cerrando y el sidebar fue movido temporalmente
-          console.log('QC Copilot: Moving sidebar back to left (menu closing)');
-          sidebarPosition = 'left';
-          isTemporarilyMoved = false;
-          applySidebarStyles();
-          updateResizerPosition();
-          showNotification('↔️ Sidebar moved back to left', 'left');
-        }
-      }
-    };
-    
-    // ESTRATEGIA PRINCIPAL: Observar el sidebar/aside específico y el body
-    const observedAside = document.querySelector('body > aside') || document.querySelector('aside');
-    const observedSidebar = observedAside ? (observedAside.querySelector('.sidebar') || observedAside) : null;
-    if (observedSidebar) {
-      console.log('QC Copilot: Found sidebar element, setting up observer');
-
-      const sidebarObserver = new MutationObserver(() => {
-        const isNowOpen = isNavigationMenuOpen();
-        if (isNowOpen !== menuWasOpen) {
-          if (qcShouldDebug()) console.log(`QC Copilot: Menu state changed from ${menuWasOpen} to ${isNowOpen}`);
-          handleMenuStateChange(isNowOpen);
-          menuWasOpen = isNowOpen;
-        }
-      });
-
-      // Observar cambios en clases y estilo del propio sidebar/aside
-      sidebarObserver.observe(observedSidebar, {
-        attributes: true,
-        attributeFilter: ['class', 'style'],
-        subtree: false
-      });
-      if (observedAside && observedAside !== observedSidebar) {
-        sidebarObserver.observe(observedAside, {
-          attributes: true,
-          attributeFilter: ['class', 'style'],
-          subtree: false
-        });
-      }
-      // Observar clases del body (p.ej. 'sidebar-open', 'sidebar-collapse')
-      sidebarObserver.observe(document.body, {
-        attributes: true,
-        attributeFilter: ['class'],
-        subtree: false
-      });
-    }
-    
-    // ESTRATEGIA COMPLEMENTARIA: Interceptar clicks en el área del menú
-    if (qcShouldDebug()) console.log('QC Copilot: Setting up click interception');
-    
-    // Capturar clicks en fase de captura (antes que otros handlers)
-    document.addEventListener('click', (e) => {
-      // Ignorar clicks dentro de nuestro propio sidebar
-      if (e.target.closest('#qc-copilot-sidebar')) return;
-
-      // Verificar si el click es en el botón del menú o cerca de él
-      const isMenuToggle = 
-        e.target.matches('body > nav > ul > li > a') ||
-        e.target.closest('body > nav > ul > li > a') ||
-        e.target.matches('[data-widget="pushmenu"]') ||
-        e.target.closest('[data-widget="pushmenu"]') ||
-        e.target.matches('.sidebar-toggle') ||
-        e.target.closest('.sidebar-toggle') ||
-        (e.target.closest('nav') && e.target.tagName === 'A');
-      
-      if (isMenuToggle) {
-        if (qcShouldDebug()) console.log('QC Copilot: Menu toggle clicked!', e.target);
-        
-        const currentlyOpen = isNavigationMenuOpen();
-        if (qcShouldDebug()) {
-          console.log('QC Copilot: Menu is currently:', currentlyOpen ? 'OPEN' : 'CLOSED');
-          console.log('QC Copilot: Sidebar position:', sidebarPosition, 'Original:', originalPosition);
-        }
-        
-        // Si el menú está abierto y se va a cerrar
-        if (currentlyOpen && isTemporarilyMoved && sidebarPosition === 'right') {
-          console.log('QC Copilot: Menu will close, scheduling sidebar return to left');
-          setTimeout(() => {
-            const stillClosed = !isNavigationMenuOpen();
-            if (stillClosed) {
-              console.log('QC Copilot: Menu confirmed closed, moving sidebar back');
-              sidebarPosition = 'left';
-              isTemporarilyMoved = false;
-              applySidebarStyles();
-              updateResizerPosition();
-              showNotification('↔️ Sidebar moved back to left', 'left');
-              menuWasOpen = false;
-            }
-          }, 350);
-        }
-        // Si el menú está cerrado y se va a abrir
-        else if (!currentlyOpen && originalPosition === 'left' && sidebarPosition === 'left') {
-          console.log('QC Copilot: Menu will open, moving sidebar to right immediately');
-          sidebarPosition = 'right';
-          isTemporarilyMoved = true;
-          applySidebarStyles();
-          updateResizerPosition();
-          showNotification('↔️ Sidebar temporarily moved to right (menu opening)', 'right');
-          menuWasOpen = true;
-        }
-      }
-    }, true); // true = capture phase
-    
-    // FALLBACK: Verificación periódica - Mejorada para detectar cambios reales
-    let checkCounter = 0;
-    setInterval(() => {
-      const isNowOpen = isNavigationMenuOpen();
-      
-      // Solo log cada 60 checks y solo en modo debug
-      if (qcShouldDebug() && (checkCounter++ % 60 === 0)) {
-        console.log('QC Copilot: Periodic check - Menu:', isNowOpen ? 'OPEN' : 'CLOSED');
-      }
-      
-      if (isNowOpen !== menuWasOpen) {
-        console.log(`QC Copilot: Periodic check detected menu change: ${menuWasOpen} -> ${isNowOpen}`);
-        handleMenuStateChange(isNowOpen);
-        menuWasOpen = isNowOpen;
-      }
-    }, 500);
-    
-    if (qcShouldDebug()) console.log('QC Copilot: Menu observer setup complete');
+    // No hay más lógica - el sidebar permanece en su posición fija
   }
 
   // NUEVO: Función para observar modales de audio analysis

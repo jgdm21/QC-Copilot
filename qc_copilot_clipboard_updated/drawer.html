@@ -8,12 +8,17 @@
   <link href="https://fonts.googleapis.com/css?family=Inter:400,700&display=swap" rel="stylesheet">
 </head>
 <body>
-  <div id="qc-tabs-header" style="display:flex; gap:8px; padding:8px; border-bottom:1px solid #e5e7eb; align-items:center;">
-    <div style="display:flex; gap:8px;">
-      <button id="qc-tab-btn-copilot" class="qc-tab-btn" style="padding:6px 10px; border:1px solid #cbd5e1; background:#f1f5f9; border-radius:6px; font-size:13px;">QC Copilot</button>
+  <div id="qc-tabs-header">
+    <div style="display:flex; gap:8px; align-items:center;">
+      <button id="qc-tab-btn-copilot" class="qc-tab-btn">QC Copilot</button>
     </div>
-    <div style="margin-left:auto;">
-      <button id="qc-clear-cache" title="Clear cached data (lists, mappings)" style="padding:6px 10px; border:1px solid #e5e7eb; background:#fff; border-radius:6px; font-size:13px; cursor:pointer;">Clear Cache</button>
+    <div class="qc-header-actions">
+      <div class="qc-font-control" title="Adjust font size">
+        <button id="qc-font-decrease" class="qc-font-btn" title="Decrease font size">A-</button>
+        <span id="qc-font-label" style="font-size:11px; color:var(--qc-text-secondary); min-width:24px; text-align:center;">M</span>
+        <button id="qc-font-increase" class="qc-font-btn" title="Increase font size">A+</button>
+      </div>
+      <button id="qc-clear-cache" class="qc-header-btn" title="Clear cached data (lists, mappings)">Clear Cache</button>
     </div>
   </div>
   <div id="qc-tabs" style="height: calc(100% - 44px); display:flex; flex-direction:column;">
