@@ -2019,22 +2019,17 @@ function renderFullUI() {
         // Alert for rejected releases - this is important enough to show in QC Checks
         if (summary.rejected && summary.rejected.length > 0) {
           const rejectedCount = summary.rejected.length;
-          // Build detailed rejected info with reasons
-          const rejectedDetails = summary.rejected.slice(0, 5).map(r => {
-            let detail = `"${r.title}"`;
-            if (r.rejectReasons && r.rejectReasons.length > 0) {
-              // Show first 2 reasons max to keep it concise
-              const reasonsPreview = r.rejectReasons.slice(0, 2).join('; ');
-              const moreReasons = r.rejectReasons.length > 2 ? ` (+${r.rejectReasons.length - 2} more)` : '';
-              detail += `: ${reasonsPreview}${moreReasons}`;
-            }
-            return detail;
-          });
+          // Build detailed rejected info with separate title and reasons
+          const rejectedDetails = summary.rejected.slice(0, 5).map(r => ({
+            title: r.title,
+            reasons: r.rejectReasons || []
+          }));
           summaryItems.push({
             msg: `User has ${rejectedCount} rejected release${rejectedCount > 1 ? 's' : ''}`,
             color: 'red',
             rawMsgKey: 'user_has_rejected_releases',
             flagValue: rejectedDetails,
+            flagType: 'rejectedReleases',
             dynamicParams: { count: rejectedCount }
           });
         }
@@ -2485,6 +2480,8 @@ function renderFullUI() {
 
             // Build "Item" column content
             let dataContent = '';
+            let detailContent = '';
+
             if (flagItems && flagItems.length > 0) {
               if (it.detailedAudioResults) {
                 // Audio results with track details
@@ -2492,40 +2489,54 @@ function renderFullUI() {
                   const trackTitle = trackResult.trackTitle || trackResult.title || 'Unknown Track';
                   return `<span class="qc-alert-data">${escapeHTML(trackTitle)}</span>`;
                 }).join('<br>');
+                // Details for audio
+                const details = flagItems.map(trackResult => {
+                  const trackDetails = trackResult.alerts || trackResult.details || [];
+                  return trackDetails.length > 0 ? trackDetails.map(d => escapeHTML(d)).join(', ') : '';
+                }).filter(d => d).join('<br>');
+                detailContent = details || '';
+              } else if (it.flagType === 'rejectedReleases') {
+                // Rejected releases - title in Item, reasons in Detail
+                dataContent = flagItems.map(entry => {
+                  const title = entry?.title || String(entry || '');
+                  return `<span class="qc-alert-data">"${escapeHTML(title)}"</span>`;
+                }).join('<br>');
+                // Reasons go in Detail column
+                const details = flagItems.map(entry => {
+                  const reasons = Array.isArray(entry?.reasons) ? entry.reasons : [];
+                  return reasons.length > 0 ? reasons.slice(0, 2).map(r => escapeHTML(r)).join('; ') + (reasons.length > 2 ? ` (+${reasons.length - 2} more)` : '') : '';
+                }).filter(d => d).join('<br>');
+                detailContent = details || '';
               } else if (it.flagType === 'invalidCreditComposer' || it.flagType === 'invalidCreditLyricist') {
                 // Credit validation entries
                 dataContent = flagItems.map(entry => {
                   const name = entry?.name || String(entry || '');
                   return `<span class="qc-alert-data">${escapeHTML(name)}</span>`;
                 }).join('<br>');
+                // Contexts go in Detail column
+                const details = flagItems.map(entry => {
+                  const contexts = Array.isArray(entry?.contexts) ? entry.contexts : [];
+                  return contexts.length > 0 ? contexts.map(ctx => escapeHTML(ctx)).join(', ') : '';
+                }).filter(d => d).join('<br>');
+                detailContent = details || '';
               } else {
-                // Normal items
-                dataContent = flagItems.map(item =>
-                  `<span class="qc-alert-data">${escapeHTML(String(item))}</span>`
-                ).join('<br>');
+                // Normal items - check if they have a structured format (object with item/detail)
+                dataContent = flagItems.map(item => {
+                  if (typeof item === 'object' && item !== null && item.item) {
+                    return `<span class="qc-alert-data">${escapeHTML(String(item.item))}</span>`;
+                  }
+                  return `<span class="qc-alert-data">${escapeHTML(String(item))}</span>`;
+                }).join('<br>');
+                // Check for details in structured items
+                const details = flagItems.map(item => {
+                  if (typeof item === 'object' && item !== null && item.detail) {
+                    return escapeHTML(String(item.detail));
+                  }
+                  return '';
+                }).filter(d => d).join('<br>');
+                detailContent = details || '';
               }
-            } else {
-              dataContent = '';
             }
-
-            // Build "Detail" column content - ONLY show actual details, not descriptions
-            let detailContent = '';
-            if (it.detailedAudioResults && flagItems && flagItems.length > 0) {
-              // Show track details for audio results
-              const details = flagItems.map(trackResult => {
-                const trackDetails = trackResult.alerts || trackResult.details || [];
-                return trackDetails.length > 0 ? trackDetails.map(d => escapeHTML(d)).join(', ') : '';
-              }).filter(d => d).join('<br>');
-              detailContent = details || '';
-            } else if ((it.flagType === 'invalidCreditComposer' || it.flagType === 'invalidCreditLyricist') && flagItems && flagItems.length > 0) {
-              // Show contexts for credit validation
-              const details = flagItems.map(entry => {
-                const contexts = Array.isArray(entry?.contexts) ? entry.contexts : [];
-                return contexts.length > 0 ? contexts.map(ctx => escapeHTML(ctx)).join(', ') : '';
-              }).filter(d => d).join('<br>');
-              detailContent = details || '';
-            }
-            // NOTE: We no longer show validation descriptions in the Detail column
 
             tableHTML += `<tr data-rawkey="${escapeHTML(it.rawMsgKey)}" data-flag="${escapeHTML(it.flagType || '')}">
               <td>
